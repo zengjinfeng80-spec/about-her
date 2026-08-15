@@ -67,6 +67,10 @@ npm run test:integration:cloud
 
 ## GitHub Pages
 
-仓库包含 `.github/workflows/deploy-pages.yml`。创建独立 GitHub 仓库后，在仓库 Secrets 中配置 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`，并把 Pages Source 设为 GitHub Actions。工作流只在 `main` 推送或手动触发时部署。
+公开仓库：<https://github.com/zengjinfeng80-spec/about-her>
 
-当前仓库只完成了代码与部署配置；尚未创建外部 GitHub 仓库、Supabase 项目或 OpenAI 密钥，也未声称线上服务已经可用。
+生产地址：<https://zengjinfeng80-spec.github.io/about-her/>
+
+仓库包含 `.github/workflows/deploy-pages.yml`，Pages Source 使用 GitHub Actions。工作流只在 `main` 推送或手动触发时部署。2026-08-15 已完成首次生产部署，并通过自动化测试、生产构建和线上 HTTP 验证。
+
+当前尚未创建独立 Supabase 项目，也未配置 Supabase 或 OpenAI 服务端密钥。因此线上站点运行在本地模式：数据只保存在当前浏览器，不包含邮箱验证码登录、云端同步或真实 AI 分析。
