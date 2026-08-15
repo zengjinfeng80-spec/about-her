@@ -15,12 +15,20 @@ port = 54323
 
 [auth]
 enabled = true
-site_url = "http://localhost:5173"
-additional_redirect_urls = ["http://127.0.0.1:5173", "http://localhost:4173"]
+site_url = "https://zengjinfeng80-spec.github.io/about-her/"
+additional_redirect_urls = ["http://127.0.0.1:5173", "http://localhost:5173", "http://localhost:4173", "https://zengjinfeng80-spec.github.io/about-her/"]
 
-[storage]
-enabled = true
-file_size_limit = "25MiB"
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+max_frequency = "60s"
+otp_length = 6
+otp_expiry = 3600
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
 
 [functions.analyze-entry]
 verify_jwt = true

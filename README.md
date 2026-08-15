@@ -23,7 +23,7 @@ npx supabase link --project-ref YOUR_PROJECT_REF
 npx supabase db push
 ```
 
-4. 在 Authentication 的邮件模板中使用 `{{ .Token }}` 显示验证码。生产环境将 Site URL 设置为 GitHub Pages 地址，并把本地地址加入 Redirect URLs。
+4. 免费套餐使用 Supabase 默认邮件登录链接。生产环境将 Site URL 设置为 GitHub Pages 地址，并把本地地址加入 Redirect URLs。数字验证码需要自定义 SMTP 或支持邮件模板修改的套餐。
 5. 在 Edge Functions 服务端设置密钥和模型变量：
 
 ```bash
@@ -73,4 +73,6 @@ npm run test:integration:cloud
 
 仓库包含 `.github/workflows/deploy-pages.yml`，Pages Source 使用 GitHub Actions。工作流只在 `main` 推送或手动触发时部署。2026-08-15 已完成首次生产部署，并通过自动化测试、生产构建和线上 HTTP 验证。
 
-当前尚未创建独立 Supabase 项目，也未配置 Supabase 或 OpenAI 服务端密钥。因此线上站点运行在本地模式：数据只保存在当前浏览器，不包含邮箱验证码登录、云端同步或真实 AI 分析。
+当前已创建独立 Supabase 项目并配置 GitHub Secrets，线上站点使用邮箱登录链接和云端同步。数据库 RLS、私有媒体存储、跨账号函数权限和未登录调用已用两个临时账号验证，测试账号已清理。
+
+OpenAI 服务端密钥与模型尚未配置，因此记录可以正常保存和同步，但自动分析、图片理解、语音转写与“问记录”暂不可用。

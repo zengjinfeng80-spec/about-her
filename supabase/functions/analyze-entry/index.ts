@@ -31,8 +31,9 @@ Deno.serve(async (request) => {
     const { data: claimed, error: claimError } = await client.rpc('claim_analysis_job', { p_entry_id: entryId, p_revision: revision });
     if (claimError) throw new Error(claimError.message);
     if (!claimed) {
-      const { data: existing } = await client.from('analysis_jobs').select('status').eq('entry_id', entryId).eq('revision', revision).single();
-      return json({ status: existing?.status ?? 'unknown', duplicate: true });
+      const { data: existing } = await client.from('analysis_jobs').select('status').eq('entry_id', entryId).eq('revision', revision).maybeSingle();
+      if (!existing) return errorResponse(new Error('记录不存在或无权访问'), 404);
+      return json({ status: existing.status, duplicate: true });
     }
     await client.from('entries').update({ analysis_status: 'processing', analysis_error: null }).eq('id', entryId).eq('revision', revision);
 

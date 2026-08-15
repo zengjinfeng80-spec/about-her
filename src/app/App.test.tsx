@@ -59,6 +59,13 @@ describe('App', () => {
     expect(results.getByText('她说喜欢草莓味，但不爱太甜。')).toBeInTheDocument();
   });
 
+  it('设置页说明当前使用邮箱链接登录', async () => {
+    const user = userEvent.setup();
+    render(<App initialSnapshot={snapshot} persist={false} accountEmail="user@example.com" />);
+    await user.click(screen.getByRole('button', { name: '设置' }));
+    expect(screen.getByText('邮箱链接登录')).toBeInTheDocument();
+  });
+
   it('云端模式通过服务提交记录并调用删除', async () => {
     const user = userEvent.setup();
     const created = { ...snapshot.entries[0], id: 'entry-cloud', content: '她想看夜场电影。', analysisStatus: 'failed' as const, analysisError: '自动分析暂时失败' };

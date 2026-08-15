@@ -17,13 +17,14 @@ create table public.entries (
   updated_at timestamptz not null default now(),
   revision integer not null default 1 check (revision > 0),
   analysis_status text not null default 'queued' check (analysis_status in ('idle', 'queued', 'processing', 'completed', 'failed')),
-  analysis_error text
+  analysis_error text,
+  unique (id, user_id)
 );
 
 create table public.attachments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  entry_id uuid not null references public.entries(id) on delete cascade,
+  entry_id uuid not null,
   kind text not null check (kind in ('image', 'audio')),
   original_name text not null check (char_length(original_name) between 1 and 500),
   mime_type text not null,
@@ -32,7 +33,9 @@ create table public.attachments (
   storage_path text not null unique,
   transcript text,
   ocr_text text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (id, user_id),
+  foreign key (entry_id, user_id) references public.entries(id, user_id) on delete cascade
 );
 
 create table public.claims (
@@ -44,28 +47,34 @@ create table public.claims (
   review_status text not null default 'unreviewed' check (review_status in ('unreviewed', 'confirmed', 'rejected')),
   lifecycle text not null default 'active' check (lifecycle in ('active', 'superseded')),
   happened_at timestamptz not null,
-  supersedes_claim_id uuid references public.claims(id) on delete set null,
-  source_entry_id uuid not null references public.entries(id) on delete cascade,
+  supersedes_claim_id uuid,
+  source_entry_id uuid not null,
   source_revision integer not null check (source_revision > 0),
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (id, user_id),
+  foreign key (supersedes_claim_id, user_id) references public.claims(id, user_id) on delete set null (supersedes_claim_id),
+  foreign key (source_entry_id, user_id) references public.entries(id, user_id) on delete cascade
 );
 
 create table public.claim_evidence (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  claim_id uuid not null references public.claims(id) on delete cascade,
-  entry_id uuid not null references public.entries(id) on delete cascade,
-  attachment_id uuid references public.attachments(id) on delete cascade,
+  claim_id uuid not null,
+  entry_id uuid not null,
+  attachment_id uuid,
   quote text,
   created_at timestamptz not null default now(),
-  unique (claim_id, entry_id, attachment_id)
+  unique nulls not distinct (claim_id, entry_id, attachment_id),
+  foreign key (claim_id, user_id) references public.claims(id, user_id) on delete cascade,
+  foreign key (entry_id, user_id) references public.entries(id, user_id) on delete cascade,
+  foreign key (attachment_id, user_id) references public.attachments(id, user_id) on delete cascade
 );
 
 create table public.analysis_jobs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  entry_id uuid not null references public.entries(id) on delete cascade,
+  entry_id uuid not null,
   revision integer not null check (revision > 0),
   status text not null default 'queued' check (status in ('queued', 'processing', 'completed', 'failed')),
   attempt_count integer not null default 0 check (attempt_count >= 0),
@@ -74,15 +83,20 @@ create table public.analysis_jobs (
   completed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (entry_id, revision)
+  unique (entry_id, revision),
+  foreign key (entry_id, user_id) references public.entries(id, user_id) on delete cascade
 );
 
 create index entries_user_happened_idx on public.entries(user_id, happened_at desc);
 create index attachments_entry_idx on public.attachments(entry_id);
+create index attachments_user_idx on public.attachments(user_id);
 create index claims_user_category_idx on public.claims(user_id, category, happened_at desc);
 create index claims_source_idx on public.claims(source_entry_id, source_revision);
+create index claims_supersedes_idx on public.claims(supersedes_claim_id) where supersedes_claim_id is not null;
 create index claim_evidence_claim_idx on public.claim_evidence(claim_id);
 create index claim_evidence_entry_idx on public.claim_evidence(entry_id);
+create index claim_evidence_attachment_idx on public.claim_evidence(attachment_id) where attachment_id is not null;
+create index claim_evidence_user_idx on public.claim_evidence(user_id);
 create index analysis_jobs_user_status_idx on public.analysis_jobs(user_id, status, created_at);
 
 create function public.set_updated_at() returns trigger language plpgsql as $$
@@ -97,7 +111,7 @@ create trigger entries_updated_at before update on public.entries for each row e
 create trigger claims_updated_at before update on public.claims for each row execute function public.set_updated_at();
 create trigger analysis_jobs_updated_at before update on public.analysis_jobs for each row execute function public.set_updated_at();
 
-create function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$
+create function public.handle_new_user() returns trigger language plpgsql security definer set search_path = '' as $$
 begin
   insert into public.profiles(id) values (new.id) on conflict do nothing;
   return new;
@@ -113,33 +127,37 @@ alter table public.claims enable row level security;
 alter table public.claim_evidence enable row level security;
 alter table public.analysis_jobs enable row level security;
 
-create policy "profiles own row" on public.profiles for all using (id = auth.uid()) with check (id = auth.uid());
-create policy "entries own rows" on public.entries for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "attachments own rows" on public.attachments for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "claims own rows" on public.claims for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "evidence own rows" on public.claim_evidence for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "jobs own rows" on public.analysis_jobs for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+revoke all on public.profiles, public.entries, public.attachments, public.claims, public.claim_evidence, public.analysis_jobs from anon;
+grant select, insert, update, delete on public.profiles, public.entries, public.attachments, public.claims, public.claim_evidence, public.analysis_jobs to authenticated;
+
+create policy "profiles own row" on public.profiles for all to authenticated using (id = (select auth.uid())) with check (id = (select auth.uid()));
+create policy "entries own rows" on public.entries for all to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+create policy "attachments own rows" on public.attachments for all to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+create policy "claims own rows" on public.claims for all to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+create policy "evidence own rows" on public.claim_evidence for all to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+create policy "jobs own rows" on public.analysis_jobs for all to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 
 insert into storage.buckets(id, name, public, file_size_limit, allowed_mime_types)
 values ('memory-media', 'memory-media', false, 26214400, array['image/jpeg','image/png','image/webp','image/heic','audio/webm','audio/mp4','audio/mpeg','audio/wav','audio/x-m4a'])
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
 create policy "media owner select" on storage.objects for select to authenticated
-using (bucket_id = 'memory-media' and (storage.foldername(name))[1] = auth.uid()::text);
+using (bucket_id = 'memory-media' and (storage.foldername(name))[1] = (select auth.uid())::text);
 create policy "media owner insert" on storage.objects for insert to authenticated
-with check (bucket_id = 'memory-media' and (storage.foldername(name))[1] = auth.uid()::text);
+with check (bucket_id = 'memory-media' and (storage.foldername(name))[1] = (select auth.uid())::text);
 create policy "media owner delete" on storage.objects for delete to authenticated
-using (bucket_id = 'memory-media' and (storage.foldername(name))[1] = auth.uid()::text);
+using (bucket_id = 'memory-media' and (storage.foldername(name))[1] = (select auth.uid())::text);
 
 create function public.claim_analysis_job(p_entry_id uuid, p_revision integer)
 returns boolean language plpgsql security invoker set search_path = public as $$
 declare
   v_claimed integer;
+  v_user_id uuid := (select auth.uid());
 begin
-  if auth.uid() is null then raise exception 'authentication required'; end if;
+  if v_user_id is null then raise exception 'authentication required'; end if;
   update analysis_jobs
   set status = 'processing', attempt_count = attempt_count + 1, started_at = now(), completed_at = null, error = null
-  where entry_id = p_entry_id and revision = p_revision and user_id = auth.uid() and status in ('queued', 'failed');
+  where entry_id = p_entry_id and revision = p_revision and user_id = v_user_id and status in ('queued', 'failed');
   get diagnostics v_claimed = row_count;
   return v_claimed = 1;
 end;
@@ -156,7 +174,7 @@ create function public.apply_entry_analysis(
   p_ocr jsonb default '{}'::jsonb
 ) returns void language plpgsql security invoker set search_path = public as $$
 declare
-  v_user_id uuid := auth.uid();
+  v_user_id uuid := (select auth.uid());
   v_claim jsonb;
   v_claim_id uuid;
   v_attachment_id uuid;
