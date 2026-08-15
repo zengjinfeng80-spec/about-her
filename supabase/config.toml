@@ -1,0 +1,32 @@
+project_id = "about-her"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://127.0.0.1:5173", "http://localhost:4173"]
+
+[storage]
+enabled = true
+file_size_limit = "25MiB"
+
+[functions.analyze-entry]
+verify_jwt = true
+
+[functions.ask-memory]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
