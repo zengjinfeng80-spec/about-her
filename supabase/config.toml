@@ -26,6 +26,15 @@ max_frequency = "60s"
 otp_length = 6
 otp_expiry = 600
 
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 587
+user = "resend"
+pass = "env(SMTP_PASS)"
+admin_email = "about-her@mail.kittydesk.com"
+sender_name = "关于她"
+
 [auth.email.template.magic_link]
 subject = "你的“关于她”登录验证码"
 content_path = "./supabase/templates/magic-link.html"
