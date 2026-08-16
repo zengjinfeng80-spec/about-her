@@ -26,7 +26,7 @@ const snapshot: MemorySnapshot = {
 describe('App', () => {
   it('首页区分已入档细节和待确认推测', () => {
     render(<App initialSnapshot={snapshot} persist={false} />);
-    expect(screen.getByRole('heading', { name: '关于她' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '雪梨' })).toBeInTheDocument();
     expect(screen.getByText('喜欢草莓味，但不爱太甜')).toBeInTheDocument();
     expect(screen.getByText('1 条待确认')).toBeInTheDocument();
   });

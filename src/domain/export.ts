@@ -10,7 +10,7 @@ const CATEGORY_LABELS: Record<ClaimCategory, string> = {
 };
 
 export function buildMarkdownExport(snapshot: MemorySnapshot) {
-  const lines = [`# 关于${snapshot.profileName}`, '', `导出时间：${new Date().toLocaleString('zh-CN')}`, ''];
+  const lines = ['# 雪梨', '', `导出时间：${new Date().toLocaleString('zh-CN')}`, ''];
 
   for (const [category, label] of Object.entries(CATEGORY_LABELS)) {
     const claims = snapshot.claims.filter((claim) => claim.category === category && claim.reviewStatus !== 'rejected');
@@ -33,4 +33,3 @@ export function buildMarkdownExport(snapshot: MemorySnapshot) {
 export function buildJsonExport(snapshot: MemorySnapshot) {
   return JSON.stringify({ exportedAt: new Date().toISOString(), ...snapshot }, null, 2);
 }
-

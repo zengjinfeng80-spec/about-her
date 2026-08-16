@@ -90,7 +90,7 @@ function LoginPage({ onSend, onVerify, initialMessage = '' }: {
   return <main className="login-page">
     <div className="login-mark"><Heart size={25} /></div>
     <p className="login-eyebrow">只属于你的一份记忆</p>
-    <h1>关于她</h1>
+    <h1>雪梨</h1>
     <p className="login-copy">{step === 'email' ? '用邮箱验证码登录。你的记录和媒体只对当前账号可见。' : `验证码已发送至 ${email}`}</p>
     {step === 'email' ? <form onSubmit={(event) => { event.preventDefault(); void sendCode(); }}>
       <label><span>邮箱</span><div><Mail size={18} /><input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" /></div></label>

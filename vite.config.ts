@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['about-her-mark.svg', 'icon-192.png', 'icon-512.png'],
       manifest: {
-        name: '关于她',
-        short_name: '关于她',
+        name: '雪梨',
+        short_name: '雪梨',
         description: '一份有依据的私人记忆',
         theme_color: '#f7f7f3',
         background_color: '#f7f7f3',

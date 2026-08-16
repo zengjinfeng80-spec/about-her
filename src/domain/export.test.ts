@@ -28,10 +28,9 @@ describe('buildMarkdownExport', () => {
     };
 
     const markdown = buildMarkdownExport(snapshot);
-    expect(markdown).toContain('# 关于她');
+    expect(markdown).toContain('# 雪梨');
     expect(markdown).toContain('## 喜欢');
     expect(markdown).toContain('喜欢草莓味，但不爱太甜');
     expect(markdown).toContain('她说喜欢草莓味，但不爱太甜。');
   });
 });
-

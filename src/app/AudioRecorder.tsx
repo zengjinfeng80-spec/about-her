@@ -38,7 +38,7 @@ export function AudioRecorder({ onRecorded, onMessage }: { onRecorded: (file: Fi
       recorder.onstop = () => {
         const type = recorder.mimeType || 'audio/webm';
         const blob = new Blob(chunksRef.current, { type });
-        onRecorded(new File([blob], `关于她-语音-${Date.now()}.webm`, { type }));
+        onRecorded(new File([blob], `雪梨-语音-${Date.now()}.webm`, { type }));
         setRecording(false);
         cleanup();
       };
