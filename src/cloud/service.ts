@@ -91,36 +91,24 @@ export class SupabaseMemoryService implements MemoryService {
     const entryId = crypto.randomUUID();
     const { error: entryError } = await this.client.from('entries').insert({
       id: entryId, user_id: userId, content: input.content.trim(), happened_at: input.happenedAt,
-      revision: 1, analysis_status: 'queued',
+      revision: 1, analysis_status: 'idle',
     });
     if (entryError) throw new Error(entryError.message);
 
-    try {
-      for (const file of input.files) {
-        const attachmentId = crypto.randomUUID();
-        const storagePath = buildStoragePath(userId, entryId, file.name, attachmentId);
-        const { error: uploadError } = await this.client.storage.from('memory-media').upload(storagePath, file, { contentType: file.type, upsert: false });
-        if (uploadError) throw new Error(`媒体上传失败：${uploadError.message}`);
-        const { error: attachmentError } = await this.client.from('attachments').insert({
-          id: attachmentId, user_id: userId, entry_id: entryId,
-          kind: file.type.startsWith('image/') ? 'image' : 'audio', original_name: file.name,
-          mime_type: file.type, size_bytes: file.size, storage_path: storagePath,
-        });
-        if (attachmentError) {
-          await this.client.storage.from('memory-media').remove([storagePath]);
-          throw new Error(`媒体信息写入失败：${attachmentError.message}`);
-        }
+    for (const file of input.files) {
+      const attachmentId = crypto.randomUUID();
+      const storagePath = buildStoragePath(userId, entryId, file.name, attachmentId);
+      const { error: uploadError } = await this.client.storage.from('memory-media').upload(storagePath, file, { contentType: file.type, upsert: false });
+      if (uploadError) throw new Error(`媒体上传失败：${uploadError.message}`);
+      const { error: attachmentError } = await this.client.from('attachments').insert({
+        id: attachmentId, user_id: userId, entry_id: entryId,
+        kind: file.type.startsWith('image/') ? 'image' : 'audio', original_name: file.name,
+        mime_type: file.type, size_bytes: file.size, storage_path: storagePath,
+      });
+      if (attachmentError) {
+        await this.client.storage.from('memory-media').remove([storagePath]);
+        throw new Error(`媒体信息写入失败：${attachmentError.message}`);
       }
-      const { error: jobError } = await this.client.from('analysis_jobs').upsert({ user_id: userId, entry_id: entryId, revision: 1, status: 'queued' }, { onConflict: 'entry_id,revision' });
-      if (jobError) throw new Error(`分析任务创建失败：${jobError.message}`);
-      const { error: invokeError } = await this.client.functions.invoke('analyze-entry', { body: { entryId, revision: 1 } });
-      if (invokeError) throw new Error(`自动分析暂时失败：${invokeError.message}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '自动分析暂时失败';
-      await Promise.all([
-        this.client.from('entries').update({ analysis_status: 'failed', analysis_error: message }).eq('id', entryId),
-        this.client.from('analysis_jobs').update({ status: 'failed', error: message }).eq('entry_id', entryId).eq('revision', 1),
-      ]);
     }
     const snapshot = await this.loadSnapshot();
     const entry = snapshot.entries.find((item) => item.id === entryId);
