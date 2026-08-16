@@ -182,8 +182,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .login-page label > span { color: var(--muted); font-size: 11px; }
 .login-page label > div { height: 50px; padding: 0 13px; border: 1px solid var(--border); border-radius: 7px; background: #fff; display: flex; align-items: center; gap: 9px; }
 .login-page input { min-width: 0; flex: 1; border: 0; background: transparent; color: var(--text); }
+.login-code-input { font-size: 20px; font-variant-numeric: tabular-nums; text-align: center; letter-spacing: 0; }
 .login-page .primary-button { width: 100%; }
 .login-page button:disabled { opacity: .65; cursor: wait; }
+.login-secondary-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.login-secondary-actions button { width: 100%; }
 .login-message { margin-top: 16px; color: var(--forest); font-size: 12px; line-height: 1.6; }
 .status-screen { min-height: 100dvh; display: grid; place-items: center; align-content: center; gap: 12px; color: var(--muted); }
 .status-screen p { margin: 0; font-size: 13px; }

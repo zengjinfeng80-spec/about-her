@@ -24,7 +24,11 @@ double_confirm_changes = true
 enable_confirmations = true
 max_frequency = "60s"
 otp_length = 6
-otp_expiry = 3600
+otp_expiry = 600
+
+[auth.email.template.magic_link]
+subject = "你的“关于她”登录验证码"
+content_path = "./supabase/templates/magic-link.html"
 
 [auth.mfa.totp]
 enroll_enabled = true

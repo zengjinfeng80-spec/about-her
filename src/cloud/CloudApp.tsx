@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createClient, type Session } from '@supabase/supabase-js';
-import { Heart, LoaderCircle, Mail } from 'lucide-react';
+import { Heart, KeyRound, LoaderCircle, Mail } from 'lucide-react';
 import { App } from '../app/App';
 import { EMPTY_SNAPSHOT } from '../data/demo';
 import type { MemorySnapshot } from '../domain/types';
@@ -41,40 +41,68 @@ export function CloudApp({ config }: { config: CloudConfig }) {
   if (!session) return <LoginPage onSend={async (email) => {
     const { error: signInError } = await client.auth.signInWithOtp({
       email,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: new URL('.', window.location.href).href,
-      },
+      options: { shouldCreateUser: true },
     });
     if (signInError) throw signInError;
+  }} onVerify={async (email, token) => {
+    const { error: verifyError } = await client.auth.verifyOtp({ email, token, type: 'email' });
+    if (verifyError) throw verifyError;
   }} initialMessage={getAuthErrorMessage(window.location.href)} />;
   if (error) return <StatusScreen label={error} action={<button className="primary-button" onClick={() => window.location.reload()}>重新加载</button>} />;
   return <App initialSnapshot={snapshot ?? EMPTY_SNAPSHOT} persist={false} service={service} accountEmail={session.user.email} onSignOut={async () => { await client.auth.signOut(); }} />;
 }
 
-function LoginPage({ onSend, initialMessage = '' }: { onSend: (email: string) => Promise<void>; initialMessage?: string }) {
+function LoginPage({ onSend, onVerify, initialMessage = '' }: {
+  onSend: (email: string) => Promise<void>;
+  onVerify: (email: string, token: string) => Promise<void>;
+  initialMessage?: string;
+}) {
+  const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
+  const [token, setToken] = useState('');
   const [message, setMessage] = useState(initialMessage);
   const [sending, setSending] = useState(false);
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const [verifying, setVerifying] = useState(false);
+
+  const sendCode = async (resent = false) => {
     setSending(true); setMessage('');
     try {
-      await onSend(email.trim());
-      setMessage('登录链接已发送，请在邮箱中点击进入。');
+      const normalizedEmail = email.trim();
+      await onSend(normalizedEmail);
+      setEmail(normalizedEmail);
+      setStep('code');
+      if (resent) setMessage('新验证码已发送。');
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : '发送失败，请稍后重试');
     } finally { setSending(false); }
   };
+
+  const verifyCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setVerifying(true); setMessage('');
+    try {
+      await onVerify(email, token);
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : '验证失败，请重新检查验证码');
+    } finally { setVerifying(false); }
+  };
+
   return <main className="login-page">
     <div className="login-mark"><Heart size={25} /></div>
     <p className="login-eyebrow">只属于你的一份记忆</p>
     <h1>关于她</h1>
-    <p className="login-copy">用邮箱登录链接进入。你的记录和媒体只对当前账号可见。</p>
-    <form onSubmit={(event) => void submit(event)}>
+    <p className="login-copy">{step === 'email' ? '用邮箱验证码登录。你的记录和媒体只对当前账号可见。' : `验证码已发送至 ${email}`}</p>
+    {step === 'email' ? <form onSubmit={(event) => { event.preventDefault(); void sendCode(); }}>
       <label><span>邮箱</span><div><Mail size={18} /><input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" /></div></label>
-      <button className="primary-button" type="submit" disabled={sending}>{sending ? <><LoaderCircle className="spin" size={17} />正在发送</> : '发送登录链接'}</button>
-    </form>
+      <button className="primary-button" type="submit" disabled={sending}>{sending ? <><LoaderCircle className="spin" size={17} />正在发送</> : '发送验证码'}</button>
+    </form> : <form onSubmit={(event) => void verifyCode(event)}>
+      <label><span>6 位验证码</span><div><KeyRound size={18} /><input required className="login-code-input" aria-label="6 位验证码" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={token} onChange={(event) => setToken(event.target.value.replace(/\D/g, '').slice(0, 6))} /></div></label>
+      <button className="primary-button" type="submit" disabled={verifying}>{verifying ? <><LoaderCircle className="spin" size={17} />正在验证</> : '验证并登录'}</button>
+      <div className="login-secondary-actions">
+        <button className="secondary-button" type="button" disabled={sending || verifying} onClick={() => void sendCode(true)}>{sending ? '正在发送' : '重新发送'}</button>
+        <button className="secondary-button" type="button" disabled={sending || verifying} onClick={() => { setStep('email'); setToken(''); setMessage(''); }}>修改邮箱</button>
+      </div>
+    </form>}
     {message && <p className="login-message" role="status">{message}</p>}
   </main>;
 }
