@@ -39,16 +39,22 @@ export function CloudApp({ config }: { config: CloudConfig }) {
 
   if (loading) return <StatusScreen label="正在打开私人档案…" />;
   if (!session) return <LoginPage onSend={async (email) => {
-    const { error: signInError } = await client.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+    const { error: signInError } = await client.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: new URL('.', window.location.href).href,
+      },
+    });
     if (signInError) throw signInError;
-  }} />;
+  }} initialMessage={getAuthErrorMessage(window.location.href)} />;
   if (error) return <StatusScreen label={error} action={<button className="primary-button" onClick={() => window.location.reload()}>重新加载</button>} />;
   return <App initialSnapshot={snapshot ?? EMPTY_SNAPSHOT} persist={false} service={service} accountEmail={session.user.email} onSignOut={async () => { await client.auth.signOut(); }} />;
 }
 
-function LoginPage({ onSend }: { onSend: (email: string) => Promise<void> }) {
+function LoginPage({ onSend, initialMessage = '' }: { onSend: (email: string) => Promise<void>; initialMessage?: string }) {
   const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(initialMessage);
   const [sending, setSending] = useState(false);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -71,6 +77,15 @@ function LoginPage({ onSend }: { onSend: (email: string) => Promise<void> }) {
     </form>
     {message && <p className="login-message" role="status">{message}</p>}
   </main>;
+}
+
+function getAuthErrorMessage(currentUrl: string) {
+  const url = new URL(currentUrl);
+  const hash = new URLSearchParams(url.hash.slice(1));
+  if (url.searchParams.get('error_code') === 'otp_expired' || hash.get('error_code') === 'otp_expired') {
+    return '登录链接已失效，请重新发送一封新邮件。';
+  }
+  return '';
 }
 
 function StatusScreen({ label, action }: { label: string; action?: React.ReactNode }) {
