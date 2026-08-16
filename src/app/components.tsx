@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Check, ChevronRight, Clock3, FileText, Image, Mic, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, ChevronRight, Clock3, FileText, Image, Mic, Trash2, X } from 'lucide-react';
 import type { MemoryClaim, MemoryEntry } from '../domain/types';
 
 export const CATEGORY_LABELS = {
@@ -28,12 +28,9 @@ export function ClaimRow({ claim, onOpen }: { claim: MemoryClaim; onOpen?: () =>
   );
 }
 
-export function EntryRow({ entry, onDelete, onRetry }: { entry: MemoryEntry; onDelete?: () => Promise<void>; onRetry?: () => Promise<void> }) {
+export function EntryRow({ entry, onDelete }: { entry: MemoryEntry; onDelete?: () => Promise<void> }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [message, setMessage] = useState('');
-  const status = {
-    idle: '等待分析', queued: '等待分析', processing: '分析中', completed: '已完成分析', failed: '分析失败', unavailable: '已保存，连接云端后才能自动分析',
-  }[entry.analysisStatus];
   return (
     <article className="entry-row">
       <div className="entry-time"><Clock3 size={14} /><time>{new Date(entry.happenedAt).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time></div>
@@ -49,8 +46,7 @@ export function EntryRow({ entry, onDelete, onRetry }: { entry: MemoryEntry; onD
             ? <div className="audio-attachment" key={attachment.id}><audio controls preload="metadata" src={attachment.url} />{attachment.transcript && <p>{attachment.transcript}</p>}</div>
             : null)}
       </div>}
-      <div className="entry-footer"><small className={`analysis-state ${entry.analysisStatus}`}><Sparkles size={13} />{status}</small>{onRetry && <button className="entry-action" onClick={() => void onRetry().then(() => setMessage('已重新提交分析')).catch((error: unknown) => setMessage(error instanceof Error ? error.message : '重试失败'))}><RotateCcw size={14} />重试</button>}{onDelete && <button className="entry-action danger" aria-label="删除这条记录" onClick={() => setConfirmingDelete(true)}><Trash2 size={14} />删除</button>}</div>
-      {entry.analysisError && <small className="analysis-error">{entry.analysisError}</small>}
+      {onDelete && <div className="entry-footer"><button className="entry-action danger" aria-label="删除这条记录" onClick={() => setConfirmingDelete(true)}><Trash2 size={14} />删除</button></div>}
       {confirmingDelete && <div className="entry-delete-confirm"><span>删除后，依赖这条记录的档案结论也会失效。</span><button className="secondary-button" onClick={() => setConfirmingDelete(false)}>取消</button><button className="danger-button" aria-label="确认删除记录" onClick={() => void onDelete?.().catch((error: unknown) => setMessage(error instanceof Error ? error.message : '删除失败'))}>确认删除</button></div>}
       {message && <small className="entry-message" role="status">{message}</small>}
     </article>

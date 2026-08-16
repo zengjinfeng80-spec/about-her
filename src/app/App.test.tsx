@@ -39,14 +39,29 @@ describe('App', () => {
     expect(screen.getByText('已确认')).toBeInTheDocument();
   });
 
-  it('新增文字记录时保留原文并说明本地模式不伪造分析', async () => {
+  it('新增文字记录时只保留原文并提示保存成功', async () => {
     const user = userEvent.setup();
     render(<App initialSnapshot={{ profileName: '她', entries: [], claims: [] }} persist={false} />);
     await user.click(screen.getByRole('button', { name: '记录' }));
     await user.type(screen.getByLabelText('记录内容'), '她说下次想去看夜场电影。');
     await user.click(screen.getByRole('button', { name: '保存记录' }));
     expect(screen.getByText('她说下次想去看夜场电影。')).toBeInTheDocument();
-    expect(screen.getByText('已保存，连接云端后才能自动分析')).toBeInTheDocument();
+    expect(screen.getByText('记录已保存')).toBeInTheDocument();
+    expect(screen.queryByText('已保存，连接云端后才能自动分析')).not.toBeInTheDocument();
+  });
+
+  it('隐藏问记录和全部分析状态入口', async () => {
+    const user = userEvent.setup();
+    render(<App initialSnapshot={{
+      ...snapshot,
+      entries: [{ ...snapshot.entries[0], analysisStatus: 'failed', analysisError: '自动分析暂时失败' }],
+    }} persist={false} />);
+
+    expect(screen.queryByRole('button', { name: '问记录' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '记录' }));
+    expect(screen.queryByText('分析失败')).not.toBeInTheDocument();
+    expect(screen.queryByText('自动分析暂时失败')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '重试' })).not.toBeInTheDocument();
   });
 
   it('搜索同时匹配档案和原始记录', async () => {
@@ -79,7 +94,8 @@ describe('App', () => {
     await user.type(screen.getByLabelText('记录内容'), '她想看夜场电影。');
     await user.click(screen.getByRole('button', { name: '保存记录' }));
     expect(service.createEntry).toHaveBeenCalled();
-    expect(screen.getByText('自动分析暂时失败')).toBeInTheDocument();
+    expect(screen.getByText('记录已保存')).toBeInTheDocument();
+    expect(screen.queryByText('自动分析暂时失败')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '删除这条记录' }));
     await user.click(screen.getByRole('button', { name: '确认删除记录' }));
     expect(service.deleteEntry).toHaveBeenCalledWith('entry-cloud');

@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Archive, BookHeart, Download, FileJson, FileText, Heart, Home, MessageCircleQuestion, Plus, Search, Settings, Sparkles, Trash2 } from 'lucide-react';
+import { Archive, BookHeart, Download, FileJson, FileText, Heart, Home, Plus, Search, Settings, Sparkles, Trash2 } from 'lucide-react';
 import { groupClaims } from '../domain/claims';
 import { buildJsonExport, buildMarkdownExport } from '../domain/export';
 import { readAudioDuration, validateAudioDuration, validateMediaSelection } from '../domain/media';
 import type { MemoryClaim, MemoryEntry, MemorySnapshot } from '../domain/types';
-import type { MemoryAnswer, MemoryService } from '../cloud/service';
+import type { MemoryService } from '../cloud/service';
 import { EMPTY_SNAPSHOT } from '../data/demo';
 import { listDrafts, removeDraft, saveDraft, type StoredDraft } from '../storage/drafts';
 import { AudioRecorder } from './AudioRecorder';
 import { CATEGORY_LABELS, ClaimRow, EmptyState, EntryRow, EvidenceSheet, PageHeader } from './components';
 import { useMemoryState } from './useMemoryState';
 
-type View = 'profile' | 'capture' | 'timeline' | 'ask' | 'settings' | 'review';
+type View = 'profile' | 'capture' | 'timeline' | 'settings' | 'review';
 
 interface AppProps {
   initialSnapshot?: MemorySnapshot;
@@ -56,7 +56,6 @@ export function App({ initialSnapshot = EMPTY_SNAPSHOT, persist = true, service,
       {view === 'profile' && <ProfilePage snapshot={snapshot} claims={grouped.profile} history={snapshot.claims.filter((claim) => claim.lifecycle === 'superseded')} pendingCount={grouped.pending.length} onClaim={setSelectedClaim} onReview={() => setView('review')} onSearch={() => setSearchOpen(true)} onSettings={() => setView('settings')} />}
       {view === 'capture' && <CapturePage snapshot={snapshot} setSnapshot={setSnapshot} service={service} onDeleteEntry={deleteEntry} />}
       {view === 'timeline' && <TimelinePage entries={snapshot.entries} onDeleteEntry={deleteEntry} />}
-      {view === 'ask' && <AskPage claims={grouped.profile} entries={snapshot.entries} service={service} />}
       {view === 'settings' && <SettingsPage snapshot={snapshot} setSnapshot={setSnapshot} service={service} accountEmail={accountEmail} onSignOut={onSignOut} onBack={() => setView('profile')} />}
       {view === 'review' && <ReviewPage claims={snapshot.claims} onConfirm={(id) => void updateClaim(id, { reviewStatus: 'confirmed' })} onReject={(id) => void updateClaim(id, { reviewStatus: 'rejected' })} onBack={() => setView('profile')} />}
     </main>
@@ -66,7 +65,6 @@ export function App({ initialSnapshot = EMPTY_SNAPSHOT, persist = true, service,
       <NavButton active={view === 'profile' || view === 'review'} icon={<Home />} label="档案" onClick={() => setView('profile')} />
       <NavButton active={view === 'capture'} icon={<BookHeart />} label="记录" onClick={() => setView('capture')} />
       <NavButton active={view === 'timeline'} icon={<Archive />} label="回忆" onClick={() => setView('timeline')} />
-      <NavButton active={view === 'ask'} icon={<MessageCircleQuestion />} label="问记录" onClick={() => setView('ask')} />
     </nav>
 
     {selectedClaim && <EvidenceSheet claim={selectedClaim} entries={snapshot.entries} onClose={() => setSelectedClaim(null)} />}
@@ -107,7 +105,7 @@ function CapturePage({ snapshot, setSnapshot, service, onDeleteEntry }: { snapsh
       setSnapshot((current) => ({ ...current, entries: [entry, ...current.entries.filter((item) => item.id !== entry.id)] }));
       return;
     }
-    const entry: MemoryEntry = { id: crypto.randomUUID(), content: draftContent.trim(), happenedAt: new Date(draftHappenedAt).toISOString(), createdAt: new Date().toISOString(), revision: 1, analysisStatus: 'unavailable', attachments: draftFiles.map((file) => ({ id: crypto.randomUUID(), kind: file.type.startsWith('image/') ? 'image' : 'audio', name: file.name, mimeType: file.type, sizeBytes: file.size, url: URL.createObjectURL(file) })) };
+    const entry: MemoryEntry = { id: crypto.randomUUID(), content: draftContent.trim(), happenedAt: new Date(draftHappenedAt).toISOString(), createdAt: new Date().toISOString(), revision: 1, analysisStatus: 'idle', attachments: draftFiles.map((file) => ({ id: crypto.randomUUID(), kind: file.type.startsWith('image/') ? 'image' : 'audio', name: file.name, mimeType: file.type, sizeBytes: file.size, url: URL.createObjectURL(file) })) };
     setSnapshot((current) => ({ ...current, entries: [entry, ...current.entries] }));
   };
 
@@ -122,9 +120,9 @@ function CapturePage({ snapshot, setSnapshot, service, onDeleteEntry }: { snapsh
       return;
     }
     try {
-      setMessage(service ? '正在安全保存并分析…' : '');
+      setMessage(service ? '正在安全保存…' : '');
       await createEntry(content, happenedAt, files);
-      setContent(''); setFiles([]); setMessage(service ? '记录已保存，分析状态见下方' : '记录已保存');
+      setContent(''); setFiles([]); setMessage('记录已保存');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存失败，请重试');
     }
@@ -172,7 +170,7 @@ function CapturePage({ snapshot, setSnapshot, service, onDeleteEntry }: { snapsh
       {message && <p className="form-message" role="status">{message}</p>}
     </form>
     {drafts.length > 0 && <section className="draft-section"><h2>本机草稿</h2>{drafts.map((draft) => <article className="draft-row" key={draft.id}><div><strong>{draft.content || '媒体记录'}</strong><small>{draft.files.length} 个媒体文件</small></div><button className="secondary-button" onClick={() => void removeDraft(draft.id).then(refreshDrafts)}>删除</button><button className="primary-button" onClick={() => void submitDraft(draft)}>提交</button></article>)}</section>}
-    <section className="recent-records"><h2>最近记录</h2>{snapshot.entries.length ? snapshot.entries.map((entry) => <EntryRow entry={entry} key={entry.id} onDelete={() => onDeleteEntry(entry.id)} onRetry={service && entry.analysisStatus === 'failed' ? () => service.retryAnalysis(entry.id, entry.revision) : undefined} />) : <p className="empty-copy">还没有记录</p>}</section>
+    <section className="recent-records"><h2>最近记录</h2>{snapshot.entries.length ? snapshot.entries.map((entry) => <EntryRow entry={entry} key={entry.id} onDelete={() => onDeleteEntry(entry.id)} />) : <p className="empty-copy">还没有记录</p>}</section>
   </section>;
 }
 
@@ -184,31 +182,6 @@ function TimelinePage({ entries, onDeleteEntry }: { entries: MemoryEntry[]; onDe
 function ReviewPage({ claims, onConfirm, onReject, onBack }: { claims: MemoryClaim[]; onConfirm: (id: string) => void; onReject: (id: string) => void; onBack: () => void }) {
   const pending = claims.filter((claim) => claim.evidenceLevel === 'inferred' && claim.reviewStatus !== 'rejected');
   return <section className="page"><PageHeader title="待确认" action={<button className="text-button" onClick={onBack}>返回</button>} />{pending.length ? <div className="review-list">{pending.map((claim) => <article className="review-item" key={claim.id}><span>{CATEGORY_LABELS[claim.category]}</span><h2>{claim.statement}</h2><p>这是一条根据记录得到的推测，不会自动当成事实。</p><div><button className="secondary-button" onClick={() => onReject(claim.id)}>不是这样</button><button className="primary-button" aria-label="确认这条线索" onClick={() => onConfirm(claim.id)}>{claim.reviewStatus === 'confirmed' ? '已确认' : '确认'}</button></div></article>)}</div> : <EmptyState title="没有待确认线索">新的推测会出现在这里，由你决定是否入档。</EmptyState>}</section>;
-}
-
-function AskPage({ claims, entries, service }: { claims: MemoryClaim[]; entries: MemoryEntry[]; service?: MemoryService }) {
-  const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState('');
-  const [citations, setCitations] = useState<MemoryAnswer['citations']>([]);
-  const ask = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!question.trim()) return;
-    if (service) {
-      setAnswer('正在查找已有依据…');
-      try {
-        const result = await service.askMemory(question.trim());
-        setAnswer(result.answer); setCitations(result.citations);
-      } catch (error) {
-        setAnswer(error instanceof Error ? error.message : '暂时无法查询'); setCitations([]);
-      }
-      return;
-    }
-    const terms = question.trim().split(/\s+/).filter(Boolean);
-    const matches = claims.filter((claim) => terms.some((term) => claim.statement.includes(term)));
-    setAnswer(matches.length ? `现有记录里相关的信息：${matches.map((item) => item.statement).join('；')}。` : '现有记录不足，暂时不能判断。连接云端 AI 后仍只会根据已有依据回答。');
-    setCitations(matches.flatMap((claim) => claim.evidence.map((evidence) => ({ claimId: claim.id, entryId: evidence.entryId, quote: evidence.quote }))));
-  };
-  return <section className="page ask-page"><PageHeader title="问记录" /><div className="ask-intro"><MessageCircleQuestion size={26} /><p>只根据你保存的记录回答，不替她说话。</p></div><form onSubmit={(event) => void ask(event)}><input value={question} onChange={(event) => setQuestion(event.target.value)} aria-label="向记录提问" placeholder="例如：她喜欢什么口味？" /><button className="primary-button" type="submit">查找依据</button></form>{answer && <div className="answer-panel"><Sparkles size={18} /><div><p>{answer}</p>{citations.length > 0 && <div className="answer-citations"><strong>依据</strong>{citations.map((citation, index) => <span key={`${citation.entryId}-${index}`}>{citation.quote || entries.find((entry) => entry.id === citation.entryId)?.content || '原始记录'}</span>)}</div>}</div></div>}</section>;
 }
 
 function SearchSheet({ snapshot, onClose, onClaim }: { snapshot: MemorySnapshot; onClose: () => void; onClaim: (claim: MemoryClaim) => void }) {
