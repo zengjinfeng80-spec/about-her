@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createClient, type Session } from '@supabase/supabase-js';
-import { Heart, KeyRound, LoaderCircle, Mail } from 'lucide-react';
+import { KeyRound, LoaderCircle, Mail, Snowflake } from 'lucide-react';
 import { App } from '../app/App';
 import { EMPTY_SNAPSHOT } from '../data/demo';
 import type { MemorySnapshot } from '../domain/types';
@@ -88,7 +88,7 @@ function LoginPage({ onSend, onVerify, initialMessage = '' }: {
   };
 
   return <main className="login-page">
-    <div className="login-mark"><Heart size={25} /></div>
+    <div className="login-mark"><Snowflake size={25} /></div>
     <p className="login-eyebrow">只属于你的一份记忆</p>
     <h1>雪梨</h1>
     <p className="login-copy">{step === 'email' ? '用邮箱验证码登录。你的记录和媒体只对当前账号可见。' : `验证码已发送至 ${email}`}</p>
