@@ -142,6 +142,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .bottom-sheet h2 { margin: 8px 42px 10px 0; font-size: 22px; line-height: 1.4; }
 .bottom-sheet h3 { margin: 27px 0 4px; font-size: 14px; }
 .evidence-status { display: inline-flex; align-items: center; gap: 5px; color: #4a5b4d; font-size: 11px; }
+.manual-archive-sheet { display: grid; gap: 18px; }
+.archive-source { padding: 13px; border: 1px solid var(--border); border-radius: 7px; background: #f7f8f4; }
+.archive-source span, .manual-archive-form label > span { color: var(--muted); font-size: 11px; }
+.archive-source p { margin: 7px 0 0; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.manual-archive-form { display: grid; gap: 14px; }
+.manual-archive-form label { display: grid; gap: 7px; }
+.manual-archive-form select, .manual-archive-form textarea { width: 100%; border: 1px solid var(--border); border-radius: 7px; background: #fff; color: var(--text); padding: 11px; }
+.manual-archive-form select { min-height: 44px; }
+.manual-archive-form textarea { min-height: 96px; resize: vertical; line-height: 1.6; }
+.manual-archive-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.manual-archive-actions button:disabled { opacity: .65; cursor: wait; }
 
 .settings-page section { margin-top: 27px; }
 .setting-row { width: 100%; min-height: 70px; padding: 11px 2px; border: 0; border-bottom: 1px solid var(--border); background: transparent; display: grid; grid-template-columns: 27px 1fr 22px; align-items: center; gap: 10px; text-align: left; cursor: pointer; }

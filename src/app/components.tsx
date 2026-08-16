@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Check, ChevronRight, Clock3, FileText, Image, Mic, Trash2, X } from 'lucide-react';
+import { Check, ChevronRight, Clock3, FileText, Image, Mic, Plus, Trash2, X } from 'lucide-react';
 import type { MemoryClaim, MemoryEntry } from '../domain/types';
 
 export const CATEGORY_LABELS = {
@@ -28,7 +28,7 @@ export function ClaimRow({ claim, onOpen }: { claim: MemoryClaim; onOpen?: () =>
   );
 }
 
-export function EntryRow({ entry, onDelete }: { entry: MemoryEntry; onDelete?: () => Promise<void> }) {
+export function EntryRow({ entry, onArchive, onDelete }: { entry: MemoryEntry; onArchive?: () => void; onDelete?: () => Promise<void> }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [message, setMessage] = useState('');
   return (
@@ -46,7 +46,10 @@ export function EntryRow({ entry, onDelete }: { entry: MemoryEntry; onDelete?: (
             ? <div className="audio-attachment" key={attachment.id}><audio controls preload="metadata" src={attachment.url} />{attachment.transcript && <p>{attachment.transcript}</p>}</div>
             : null)}
       </div>}
-      {onDelete && <div className="entry-footer"><button className="entry-action danger" aria-label="删除这条记录" onClick={() => setConfirmingDelete(true)}><Trash2 size={14} />删除</button></div>}
+      {(onArchive || onDelete) && <div className="entry-footer">
+        {onArchive && <button className="entry-action" aria-label="加入档案" onClick={onArchive}><Plus size={14} />加入档案</button>}
+        {onDelete && <button className="entry-action danger" aria-label="删除这条记录" onClick={() => setConfirmingDelete(true)}><Trash2 size={14} />删除</button>}
+      </div>}
       {confirmingDelete && <div className="entry-delete-confirm"><span>删除后，依赖这条记录的档案结论也会失效。</span><button className="secondary-button" onClick={() => setConfirmingDelete(false)}>取消</button><button className="danger-button" aria-label="确认删除记录" onClick={() => void onDelete?.().catch((error: unknown) => setMessage(error instanceof Error ? error.message : '删除失败'))}>确认删除</button></div>}
       {message && <small className="entry-message" role="status">{message}</small>}
     </article>

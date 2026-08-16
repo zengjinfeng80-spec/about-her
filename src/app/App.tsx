@@ -3,12 +3,13 @@ import { Archive, BookHeart, Download, FileJson, FileText, Heart, Home, Plus, Se
 import { groupClaims } from '../domain/claims';
 import { buildJsonExport, buildMarkdownExport } from '../domain/export';
 import { readAudioDuration, validateAudioDuration, validateMediaSelection } from '../domain/media';
-import type { MemoryClaim, MemoryEntry, MemorySnapshot } from '../domain/types';
+import type { ClaimCategory, MemoryClaim, MemoryEntry, MemorySnapshot } from '../domain/types';
 import type { MemoryService } from '../cloud/service';
 import { EMPTY_SNAPSHOT } from '../data/demo';
 import { listDrafts, removeDraft, saveDraft, type StoredDraft } from '../storage/drafts';
 import { AudioRecorder } from './AudioRecorder';
 import { CATEGORY_LABELS, ClaimRow, EmptyState, EntryRow, EvidenceSheet, PageHeader } from './components';
+import { ManualArchiveSheet } from './ManualArchiveSheet';
 import { useMemoryState } from './useMemoryState';
 
 type View = 'profile' | 'capture' | 'timeline' | 'settings' | 'review';
@@ -35,6 +36,7 @@ export function App({ initialSnapshot = EMPTY_SNAPSHOT, persist = true, service,
   const [view, setView] = useState<View>('profile');
   const [selectedClaim, setSelectedClaim] = useState<MemoryClaim | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [archiveEntry, setArchiveEntry] = useState<MemoryEntry | null>(null);
   const grouped = useMemo(() => groupClaims(snapshot.claims), [snapshot.claims]);
 
   const updateClaim = async (id: string, updates: Partial<MemoryClaim>) => {
@@ -51,11 +53,33 @@ export function App({ initialSnapshot = EMPTY_SNAPSHOT, persist = true, service,
     }));
   };
 
+  const createManualClaim = async (entry: MemoryEntry, input: { category: ClaimCategory; statement: string }) => {
+    const claim = service
+      ? await service.createManualClaim({
+          entryId: entry.id,
+          entryRevision: entry.revision,
+          entryContent: entry.content,
+          happenedAt: entry.happenedAt,
+          ...input,
+        })
+      : {
+          id: crypto.randomUUID(),
+          category: input.category,
+          statement: input.statement.trim(),
+          evidenceLevel: 'explicit' as const,
+          reviewStatus: 'confirmed' as const,
+          lifecycle: 'active' as const,
+          happenedAt: entry.happenedAt,
+          evidence: [{ entryId: entry.id, ...(entry.content.trim() ? { quote: entry.content.trim() } : {}) }],
+        };
+    setSnapshot((current) => ({ ...current, claims: [claim, ...current.claims] }));
+  };
+
   return <div className="app-shell">
     <main className="app-main">
       {view === 'profile' && <ProfilePage snapshot={snapshot} claims={grouped.profile} history={snapshot.claims.filter((claim) => claim.lifecycle === 'superseded')} pendingCount={grouped.pending.length} onClaim={setSelectedClaim} onReview={() => setView('review')} onSearch={() => setSearchOpen(true)} onSettings={() => setView('settings')} />}
-      {view === 'capture' && <CapturePage snapshot={snapshot} setSnapshot={setSnapshot} service={service} onDeleteEntry={deleteEntry} />}
-      {view === 'timeline' && <TimelinePage entries={snapshot.entries} onDeleteEntry={deleteEntry} />}
+      {view === 'capture' && <CapturePage snapshot={snapshot} setSnapshot={setSnapshot} service={service} onArchiveEntry={setArchiveEntry} onDeleteEntry={deleteEntry} />}
+      {view === 'timeline' && <TimelinePage entries={snapshot.entries} onArchiveEntry={setArchiveEntry} onDeleteEntry={deleteEntry} />}
       {view === 'settings' && <SettingsPage snapshot={snapshot} setSnapshot={setSnapshot} service={service} accountEmail={accountEmail} onSignOut={onSignOut} onBack={() => setView('profile')} />}
       {view === 'review' && <ReviewPage claims={snapshot.claims} onConfirm={(id) => void updateClaim(id, { reviewStatus: 'confirmed' })} onReject={(id) => void updateClaim(id, { reviewStatus: 'rejected' })} onBack={() => setView('profile')} />}
     </main>
@@ -69,6 +93,7 @@ export function App({ initialSnapshot = EMPTY_SNAPSHOT, persist = true, service,
 
     {selectedClaim && <EvidenceSheet claim={selectedClaim} entries={snapshot.entries} onClose={() => setSelectedClaim(null)} />}
     {searchOpen && <SearchSheet snapshot={snapshot} onClose={() => setSearchOpen(false)} onClaim={setSelectedClaim} />}
+    {archiveEntry && <ManualArchiveSheet entry={archiveEntry} onSave={(input) => createManualClaim(archiveEntry, input)} onClose={() => setArchiveEntry(null)} />}
   </div>;
 }
 
@@ -90,7 +115,7 @@ function ProfilePage({ snapshot, claims, history, pendingCount, onClaim, onRevie
   </section>;
 }
 
-function CapturePage({ snapshot, setSnapshot, service, onDeleteEntry }: { snapshot: MemorySnapshot; setSnapshot: React.Dispatch<React.SetStateAction<MemorySnapshot>>; service?: MemoryService; onDeleteEntry: (id: string) => Promise<void> }) {
+function CapturePage({ snapshot, setSnapshot, service, onArchiveEntry, onDeleteEntry }: { snapshot: MemorySnapshot; setSnapshot: React.Dispatch<React.SetStateAction<MemorySnapshot>>; service?: MemoryService; onArchiveEntry: (entry: MemoryEntry) => void; onDeleteEntry: (id: string) => Promise<void> }) {
   const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [message, setMessage] = useState('');
@@ -170,13 +195,13 @@ function CapturePage({ snapshot, setSnapshot, service, onDeleteEntry }: { snapsh
       {message && <p className="form-message" role="status">{message}</p>}
     </form>
     {drafts.length > 0 && <section className="draft-section"><h2>本机草稿</h2>{drafts.map((draft) => <article className="draft-row" key={draft.id}><div><strong>{draft.content || '媒体记录'}</strong><small>{draft.files.length} 个媒体文件</small></div><button className="secondary-button" onClick={() => void removeDraft(draft.id).then(refreshDrafts)}>删除</button><button className="primary-button" onClick={() => void submitDraft(draft)}>提交</button></article>)}</section>}
-    <section className="recent-records"><h2>最近记录</h2>{snapshot.entries.length ? snapshot.entries.map((entry) => <EntryRow entry={entry} key={entry.id} onDelete={() => onDeleteEntry(entry.id)} />) : <p className="empty-copy">还没有记录</p>}</section>
+    <section className="recent-records"><h2>最近记录</h2>{snapshot.entries.length ? snapshot.entries.map((entry) => <EntryRow entry={entry} key={entry.id} onArchive={() => onArchiveEntry(entry)} onDelete={() => onDeleteEntry(entry.id)} />) : <p className="empty-copy">还没有记录</p>}</section>
   </section>;
 }
 
-function TimelinePage({ entries, onDeleteEntry }: { entries: MemoryEntry[]; onDeleteEntry: (id: string) => Promise<void> }) {
+function TimelinePage({ entries, onArchiveEntry, onDeleteEntry }: { entries: MemoryEntry[]; onArchiveEntry: (entry: MemoryEntry) => void; onDeleteEntry: (id: string) => Promise<void> }) {
   const ordered = [...entries].sort((a, b) => b.happenedAt.localeCompare(a.happenedAt));
-  return <section className="page"><PageHeader title="回忆" />{ordered.length ? <div className="timeline">{ordered.map((entry) => <div className="timeline-item" key={entry.id}><span className="timeline-dot" /><EntryRow entry={entry} onDelete={() => onDeleteEntry(entry.id)} /></div>)}</div> : <EmptyState title="回忆会慢慢长出来">每一次记录，都会按发生时间留在这里。</EmptyState>}</section>;
+  return <section className="page"><PageHeader title="回忆" />{ordered.length ? <div className="timeline">{ordered.map((entry) => <div className="timeline-item" key={entry.id}><span className="timeline-dot" /><EntryRow entry={entry} onArchive={() => onArchiveEntry(entry)} onDelete={() => onDeleteEntry(entry.id)} /></div>)}</div> : <EmptyState title="回忆会慢慢长出来">每一次记录，都会按发生时间留在这里。</EmptyState>}</section>;
 }
 
 function ReviewPage({ claims, onConfirm, onReject, onBack }: { claims: MemoryClaim[]; onConfirm: (id: string) => void; onReject: (id: string) => void; onBack: () => void }) {

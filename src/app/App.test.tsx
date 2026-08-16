@@ -100,4 +100,77 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '确认删除记录' }));
     expect(service.deleteEntry).toHaveBeenCalledWith('entry-cloud');
   });
+
+  it('可以从同一条记录连续手动加入多个档案分类', async () => {
+    const user = userEvent.setup();
+    render(<App initialSnapshot={{ ...snapshot, claims: [] }} persist={false} />);
+    await user.click(screen.getByRole('button', { name: '记录' }));
+    await user.click(screen.getByRole('button', { name: '加入档案' }));
+
+    const dialog = screen.getByRole('dialog', { name: '手动入档' });
+    expect(within(dialog).getByText('她说喜欢草莓味，但不爱太甜。')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('档案内容')).toHaveValue('');
+
+    await user.selectOptions(within(dialog).getByLabelText('档案分类'), 'like');
+    await user.type(within(dialog).getByLabelText('档案内容'), '喜欢草莓味');
+    await user.click(within(dialog).getByRole('button', { name: '保存到档案' }));
+    expect(within(dialog).getByRole('status')).toHaveTextContent('已加入档案，可以继续添加');
+    expect(within(dialog).getByLabelText('档案分类')).toHaveValue('');
+    expect(within(dialog).getByLabelText('档案内容')).toHaveValue('');
+
+    await user.selectOptions(within(dialog).getByLabelText('档案分类'), 'dislike');
+    await user.type(within(dialog).getByLabelText('档案内容'), '不喜欢太甜');
+    await user.click(within(dialog).getByRole('button', { name: '保存到档案' }));
+    await user.click(within(dialog).getByRole('button', { name: '完成' }));
+    await user.click(screen.getByRole('button', { name: '档案' }));
+
+    expect(screen.getByText('喜欢草莓味')).toBeInTheDocument();
+    expect(screen.getByText('不喜欢太甜')).toBeInTheDocument();
+    expect(screen.getAllByText('已确认')).toHaveLength(2);
+  });
+
+  it('手动入档要求选择分类并填写内容', async () => {
+    const user = userEvent.setup();
+    render(<App initialSnapshot={{ ...snapshot, claims: [] }} persist={false} />);
+    await user.click(screen.getByRole('button', { name: '记录' }));
+    await user.click(screen.getByRole('button', { name: '加入档案' }));
+    const dialog = screen.getByRole('dialog', { name: '手动入档' });
+
+    await user.click(within(dialog).getByRole('button', { name: '保存到档案' }));
+    expect(within(dialog).getByRole('status')).toHaveTextContent('请选择档案分类');
+    await user.selectOptions(within(dialog).getByLabelText('档案分类'), 'wish');
+    await user.click(within(dialog).getByRole('button', { name: '保存到档案' }));
+    expect(within(dialog).getByRole('status')).toHaveTextContent('请填写档案内容');
+  });
+
+  it('正式账号手动入档时调用云端服务并立即更新档案', async () => {
+    const user = userEvent.setup();
+    const createdClaim = {
+      id: 'manual-claim-1', category: 'wish' as const, statement: '想看夜场电影',
+      evidenceLevel: 'explicit' as const, reviewStatus: 'confirmed' as const,
+      lifecycle: 'active' as const, happenedAt: snapshot.entries[0].happenedAt,
+      evidence: [{ entryId: 'entry-1', quote: snapshot.entries[0].content }],
+    };
+    const service = {
+      createManualClaim: vi.fn().mockResolvedValue(createdClaim),
+      createEntry: vi.fn(), deleteEntry: vi.fn(), updateClaim: vi.fn(),
+      askMemory: vi.fn(), deleteAccount: vi.fn(), loadSnapshot: vi.fn(), retryAnalysis: vi.fn(),
+    } satisfies MemoryService;
+    render(<App initialSnapshot={{ ...snapshot, claims: [] }} persist={false} service={service} />);
+    await user.click(screen.getByRole('button', { name: '记录' }));
+    await user.click(screen.getByRole('button', { name: '加入档案' }));
+    await user.selectOptions(screen.getByLabelText('档案分类'), 'wish');
+    await user.type(screen.getByLabelText('档案内容'), '想看夜场电影');
+    await user.click(screen.getByRole('button', { name: '保存到档案' }));
+
+    expect(service.createManualClaim).toHaveBeenCalledWith({
+      entryId: 'entry-1', entryRevision: 1,
+      entryContent: snapshot.entries[0].content,
+      happenedAt: snapshot.entries[0].happenedAt,
+      category: 'wish', statement: '想看夜场电影',
+    });
+    await user.click(screen.getByRole('button', { name: '完成' }));
+    await user.click(screen.getByRole('button', { name: '档案' }));
+    expect(screen.getByText('想看夜场电影')).toBeInTheDocument();
+  });
 });
