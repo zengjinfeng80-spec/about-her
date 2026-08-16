@@ -1,6 +1,6 @@
 # 雪梨
 
-一个手机优先、可追溯依据的私密记忆 PWA。文字、图片和语音原件会保留，AI 只负责从已有素材中整理候选档案，不替她说话，也不根据照片表情推断性格或感情。
+一个手机优先的私密记忆 PWA。文字、图片和语音原件会保留并在同一邮箱账号下同步；当前版本暂不启用内置 AI。
 
 ## 本地运行
 
@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-未创建 `.env.local` 时，应用进入本地模式：文字和媒体保存在当前浏览器，离线内容进入 IndexedDB 草稿箱，不会伪造 AI 分析。打开 `http://localhost:5173/?demo=1` 可查看示例档案。
+未创建 `.env.local` 时，应用进入本地模式：文字和媒体保存在当前浏览器，离线内容进入 IndexedDB 草稿箱。打开 `http://localhost:5173/?demo=1` 可查看示例档案。
 
 ## 连接独立 Supabase
 
@@ -24,7 +24,7 @@ npx supabase db push
 ```
 
 4. 免费套餐使用 Supabase 默认邮件登录链接。生产环境将 Site URL 设置为 GitHub Pages 地址，并把本地地址加入 Redirect URLs。数字验证码需要自定义 SMTP 或支持邮件模板修改的套餐。
-5. 在 Edge Functions 服务端设置密钥和模型变量：
+5. 未来重新启用 AI 时，才在 Edge Functions 服务端设置密钥和模型变量：
 
 ```bash
 npx supabase secrets set OPENAI_API_KEY=YOUR_KEY
@@ -75,4 +75,4 @@ npm run test:integration:cloud
 
 当前已创建独立 Supabase 项目并配置 GitHub Secrets，线上站点使用邮箱登录链接和云端同步。数据库 RLS、私有媒体存储、跨账号函数权限和未登录调用已用两个临时账号验证，测试账号已清理。
 
-OpenAI 服务端密钥与模型尚未配置，因此记录可以正常保存和同步，但自动分析、图片理解、语音转写与“问记录”暂不可用。
+当前版本已在客户端暂停内置 AI：新记录只保存和同步原始文字、图片与录音，不创建分析任务，也不显示“问记录”、分析状态或重试入口。服务端 AI 结构仅为后续开发保留，当前未配置模型密钥。
