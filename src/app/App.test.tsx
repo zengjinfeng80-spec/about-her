@@ -87,7 +87,7 @@ describe('App', () => {
     const service = {
       createEntry: vi.fn().mockResolvedValue(created),
       deleteEntry: vi.fn().mockResolvedValue(undefined),
-      updateClaim: vi.fn(), askMemory: vi.fn(), deleteAccount: vi.fn(), loadSnapshot: vi.fn(), retryAnalysis: vi.fn(),
+      createManualClaim: vi.fn(), updateClaim: vi.fn(), askMemory: vi.fn(), deleteAccount: vi.fn(), loadSnapshot: vi.fn(), retryAnalysis: vi.fn(),
     } satisfies MemoryService;
     render(<App initialSnapshot={{ profileName: '她', entries: [], claims: [] }} persist={false} service={service} />);
     await user.click(screen.getByRole('button', { name: '记录' }));

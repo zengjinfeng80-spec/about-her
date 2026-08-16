@@ -1,11 +1,20 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { MemoryClaim, MemoryEntry, MemorySnapshot, ReviewStatus } from '../domain/types';
+import type { ClaimCategory, MemoryClaim, MemoryEntry, MemorySnapshot, ReviewStatus } from '../domain/types';
 import { rowsToSnapshot } from './mappers';
 
 export interface CreateEntryInput {
   content: string;
   happenedAt: string;
   files: File[];
+}
+
+export interface CreateManualClaimInput {
+  entryId: string;
+  entryRevision: number;
+  entryContent: string;
+  happenedAt: string;
+  category: ClaimCategory;
+  statement: string;
 }
 
 export interface MemoryCitation {
@@ -22,6 +31,7 @@ export interface MemoryAnswer {
 export interface MemoryService {
   loadSnapshot(): Promise<MemorySnapshot>;
   createEntry(input: CreateEntryInput): Promise<MemoryEntry>;
+  createManualClaim(input: CreateManualClaimInput): Promise<MemoryClaim>;
   updateClaim(id: string, reviewStatus: ReviewStatus): Promise<void>;
   deleteEntry(id: string): Promise<void>;
   retryAnalysis(entryId: string, revision: number): Promise<void>;
@@ -114,6 +124,39 @@ export class SupabaseMemoryService implements MemoryService {
     const entry = snapshot.entries.find((item) => item.id === entryId);
     if (!entry) throw new Error('记录已保存，但刷新失败');
     return entry;
+  }
+
+  async createManualClaim(input: CreateManualClaimInput): Promise<MemoryClaim> {
+    const statement = input.statement.trim();
+    if (!statement) throw new Error('请填写档案内容');
+    const userId = await this.userId();
+    const claimId = crypto.randomUUID();
+    const evidenceId = crypto.randomUUID();
+    const quote = input.entryContent.trim() || undefined;
+
+    const { error: claimError } = await this.client.from('claims').insert({
+      id: claimId, user_id: userId, category: input.category, statement,
+      evidence_level: 'explicit', review_status: 'confirmed', lifecycle: 'active',
+      happened_at: input.happenedAt, source_entry_id: input.entryId, source_revision: input.entryRevision,
+    });
+    if (claimError) throw new Error(`入档失败：${claimError.message}`);
+
+    const { error: evidenceError } = await this.client.from('claim_evidence').insert({
+      id: evidenceId, user_id: userId, claim_id: claimId, entry_id: input.entryId,
+      attachment_id: null, quote: quote ?? null,
+    });
+    if (evidenceError) {
+      const { error: cleanupError } = await this.client.from('claims').delete().eq('id', claimId);
+      if (cleanupError) throw new Error(`档案关联失败，自动清理失败：${cleanupError.message}`);
+      throw new Error(`档案关联失败：${evidenceError.message}`);
+    }
+
+    return {
+      id: claimId, category: input.category, statement,
+      evidenceLevel: 'explicit', reviewStatus: 'confirmed', lifecycle: 'active',
+      happenedAt: input.happenedAt,
+      evidence: [{ entryId: input.entryId, ...(quote ? { quote } : {}) }],
+    };
   }
 
   async updateClaim(id: string, reviewStatus: ReviewStatus) {
