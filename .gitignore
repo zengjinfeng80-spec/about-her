@@ -12,4 +12,5 @@ coverage/
 playwright-report/
 test-results/
 .superpowers/
+.worktrees/
 supabase/.temp/
