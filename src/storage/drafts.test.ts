@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { clearDrafts, listDrafts, removeDraft, saveDraft } from './drafts';
+import type { ClaimCategory } from '../domain/types';
 
 describe('drafts', () => {
   beforeEach(async () => clearDrafts());
@@ -24,5 +25,20 @@ describe('drafts', () => {
     await removeDraft('draft-1');
     expect(await listDrafts()).toEqual([]);
   });
-});
 
+  it('保存并读取新草稿的档案分类，同时兼容没有分类的旧草稿', async () => {
+    await saveDraft({
+      id: 'draft-category',
+      content: '她喜欢安静的地方。',
+      happenedAt: '2026-08-17T20:00',
+      createdAt: '2026-08-17T20:01:00.000Z',
+      category: 'like' satisfies ClaimCategory,
+      files: [],
+    });
+    await saveDraft({ id: 'draft-legacy', content: '旧草稿', happenedAt: '', createdAt: '', files: [] });
+
+    const drafts = await listDrafts();
+    expect(drafts.find((draft) => draft.id === 'draft-category')?.category).toBe('like');
+    expect(drafts.find((draft) => draft.id === 'draft-legacy')?.category).toBeUndefined();
+  });
+});

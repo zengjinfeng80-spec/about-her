@@ -1,8 +1,11 @@
+import type { ClaimCategory } from '../domain/types';
+
 export interface MemoryDraft {
   id: string;
   content: string;
   happenedAt: string;
   createdAt: string;
+  category?: ClaimCategory;
   files: File[];
 }
 
