@@ -78,7 +78,7 @@ export function App({ initialSnapshot = EMPTY_SNAPSHOT, persist = true, service,
   return <div className="app-shell">
     <main className="app-main">
       {view === 'profile' && <ProfilePage snapshot={snapshot} claims={grouped.profile} history={snapshot.claims.filter((claim) => claim.lifecycle === 'superseded')} pendingCount={grouped.pending.length} onClaim={setSelectedClaim} onReview={() => setView('review')} onSearch={() => setSearchOpen(true)} onSettings={() => setView('settings')} />}
-      {view === 'capture' && <CapturePage snapshot={snapshot} setSnapshot={setSnapshot} service={service} onArchiveEntry={setArchiveEntry} onDeleteEntry={deleteEntry} />}
+      {view === 'capture' && <CapturePage snapshot={snapshot} setSnapshot={setSnapshot} service={service} onAutoArchive={createManualClaim} onArchiveEntry={setArchiveEntry} onDeleteEntry={deleteEntry} />}
       {view === 'timeline' && <TimelinePage entries={snapshot.entries} onArchiveEntry={setArchiveEntry} onDeleteEntry={deleteEntry} />}
       {view === 'settings' && <SettingsPage snapshot={snapshot} setSnapshot={setSnapshot} service={service} accountEmail={accountEmail} onSignOut={onSignOut} onBack={() => setView('profile')} />}
       {view === 'review' && <ReviewPage claims={snapshot.claims} onConfirm={(id) => void updateClaim(id, { reviewStatus: 'confirmed' })} onReject={(id) => void updateClaim(id, { reviewStatus: 'rejected' })} onBack={() => setView('profile')} />}
@@ -115,8 +115,9 @@ function ProfilePage({ snapshot, claims, history, pendingCount, onClaim, onRevie
   </section>;
 }
 
-function CapturePage({ snapshot, setSnapshot, service, onArchiveEntry, onDeleteEntry }: { snapshot: MemorySnapshot; setSnapshot: React.Dispatch<React.SetStateAction<MemorySnapshot>>; service?: MemoryService; onArchiveEntry: (entry: MemoryEntry) => void; onDeleteEntry: (id: string) => Promise<void> }) {
+function CapturePage({ snapshot, setSnapshot, service, onAutoArchive, onArchiveEntry, onDeleteEntry }: { snapshot: MemorySnapshot; setSnapshot: React.Dispatch<React.SetStateAction<MemorySnapshot>>; service?: MemoryService; onAutoArchive: (entry: MemoryEntry, input: { category: ClaimCategory; statement: string }) => Promise<void>; onArchiveEntry: (entry: MemoryEntry) => void; onDeleteEntry: (id: string) => Promise<void> }) {
   const [content, setContent] = useState('');
+  const [category, setCategory] = useState<ClaimCategory | ''>('');
   const [files, setFiles] = useState<File[]>([]);
   const [message, setMessage] = useState('');
   const [drafts, setDrafts] = useState<StoredDraft[]>([]);
@@ -128,26 +129,39 @@ function CapturePage({ snapshot, setSnapshot, service, onArchiveEntry, onDeleteE
     if (service) {
       const entry = await service.createEntry({ content: draftContent, happenedAt: new Date(draftHappenedAt).toISOString(), files: draftFiles });
       setSnapshot((current) => ({ ...current, entries: [entry, ...current.entries.filter((item) => item.id !== entry.id)] }));
-      return;
+      return entry;
     }
     const entry: MemoryEntry = { id: crypto.randomUUID(), content: draftContent.trim(), happenedAt: new Date(draftHappenedAt).toISOString(), createdAt: new Date().toISOString(), revision: 1, analysisStatus: 'idle', attachments: draftFiles.map((file) => ({ id: crypto.randomUUID(), kind: file.type.startsWith('image/') ? 'image' : 'audio', name: file.name, mimeType: file.type, sizeBytes: file.size, url: URL.createObjectURL(file) })) };
     setSnapshot((current) => ({ ...current, entries: [entry, ...current.entries] }));
+    return entry;
   };
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!content.trim() && !files.length) return;
+    if (content.trim() && !category) return setMessage('请选择档案分类');
     if (!navigator.onLine) {
-      await saveDraft({ id: crypto.randomUUID(), content: content.trim(), happenedAt, createdAt: new Date().toISOString(), files });
+      await saveDraft({ id: crypto.randomUUID(), content: content.trim(), happenedAt, createdAt: new Date().toISOString(), category: category || undefined, files });
       setMessage('已保存到本机草稿，联网后可以提交');
-      setContent(''); setFiles([]);
+      setContent(''); setCategory(''); setFiles([]);
       await refreshDrafts();
       return;
     }
     try {
       setMessage(service ? '正在安全保存…' : '');
-      await createEntry(content, happenedAt, files);
-      setContent(''); setFiles([]); setMessage('记录已保存');
+      const entry = await createEntry(content, happenedAt, files);
+      const shouldArchive = Boolean(entry.content.trim() && category);
+      setContent(''); setCategory(''); setFiles([]);
+      if (shouldArchive) {
+        try {
+          await onAutoArchive(entry, { category: category as ClaimCategory, statement: entry.content.trim() });
+          setMessage('记录已保存并自动加入档案');
+        } catch {
+          setMessage('记录已保存，但自动入档失败，可在下方点击加入档案补录');
+        }
+      } else {
+        setMessage('记录已保存');
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存失败，请重试');
     }
@@ -170,10 +184,19 @@ function CapturePage({ snapshot, setSnapshot, service, onArchiveEntry, onDeleteE
   const submitDraft = async (draft: StoredDraft) => {
     const restored = draft.files.map((file) => new File([file.data], file.name, { type: file.type }));
     try {
-      await createEntry(draft.content, draft.happenedAt, restored);
+      const entry = await createEntry(draft.content, draft.happenedAt, restored);
       await removeDraft(draft.id);
       await refreshDrafts();
-      setMessage('草稿已提交');
+      if (entry.content.trim() && draft.category) {
+        try {
+          await onAutoArchive(entry, { category: draft.category, statement: entry.content.trim() });
+          setMessage('草稿已提交并自动加入档案');
+        } catch {
+          setMessage('草稿已提交，但自动入档失败，可在记录下方点击加入档案补录');
+        }
+      } else {
+        setMessage('草稿已提交');
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '草稿提交失败');
     }
@@ -183,8 +206,12 @@ function CapturePage({ snapshot, setSnapshot, service, onArchiveEntry, onDeleteE
     <form className="capture-form" onSubmit={save}>
       <textarea aria-label="记录内容" value={content} onChange={(event) => setContent(event.target.value)} placeholder="她今天说了什么，或者你又想起了什么……" />
       <label className="date-field"><span>发生时间</span><input type="datetime-local" value={happenedAt} onChange={(event) => setHappenedAt(event.target.value)} /></label>
+      <label className="archive-category-field"><span>档案分类</span><select aria-label="档案分类" value={category} onChange={(event) => setCategory(event.target.value as ClaimCategory | '')}>
+        <option value="">有文字时请选择分类</option>
+        {Object.entries(CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+      </select></label>
       <div className="media-tools">
-        <label className="tool-button"><Plus size={18} /><span>图片 / 语音</span><input hidden type="file" accept="image/*,audio/*" multiple onChange={(event) => void chooseFiles(Array.from(event.target.files ?? []))} /></label>
+        <label className="tool-button"><Plus size={18} /><span>图片 / 语音</span><input aria-label="图片 / 语音" hidden type="file" accept="image/*,audio/*" multiple onChange={(event) => void chooseFiles(Array.from(event.target.files ?? []))} /></label>
         <AudioRecorder onRecorded={addRecording} onMessage={setMessage} />
       </div>
       <div className="capture-tools">

@@ -79,6 +79,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .date-field { display: grid; gap: 6px; padding: 13px 2px; border-top: 1px solid var(--border); }
 .date-field span { color: var(--muted); font-size: 11px; }
 .date-field input { width: 100%; min-height: 42px; border: 1px solid var(--border); border-radius: 7px; background: #fafaf7; color: var(--text); padding: 0 10px; }
+.archive-category-field { display: grid; gap: 6px; padding: 13px 2px; border-top: 1px solid var(--border); }
+.archive-category-field span { color: var(--muted); font-size: 11px; }
+.archive-category-field select { width: 100%; min-height: 42px; border: 1px solid var(--border); border-radius: 7px; background: #fafaf7; color: var(--text); padding: 0 10px; }
 .capture-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 11px; }
 .media-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
 .tool-button, .primary-button, .secondary-button, .danger-button { min-height: 44px; border-radius: 7px; padding: 0 15px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-size: 13px; font-weight: 700; cursor: pointer; }
