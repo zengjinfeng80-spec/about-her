@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CloudApp } from './CloudApp';
+import { CloudApp, withTimeout } from './CloudApp';
 
 const auth = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -22,6 +22,10 @@ describe('CloudApp 邮箱登录', () => {
     auth.onAuthStateChange.mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
     auth.signInWithOtp.mockResolvedValue({ error: null });
     auth.verifyOtp.mockResolvedValue({ error: null });
+  });
+
+  it('云端请求超时时不会无限停留在加载状态', async () => {
+    await expect(withTimeout(new Promise<never>(() => {}), 1, '读取云端档案超时')).rejects.toThrow('读取云端档案超时');
   });
 
   it('发送验证码后进入验证码步骤', async () => {

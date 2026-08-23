@@ -7,6 +7,18 @@ import type { MemorySnapshot } from '../domain/types';
 import type { CloudConfig } from './config';
 import { SupabaseMemoryService } from './service';
 
+const CLOUD_REQUEST_TIMEOUT_MS = 15000;
+
+export function withTimeout<T>(promise: Promise<T>, milliseconds: number, message: string) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), milliseconds);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 export function CloudApp({ config }: { config: CloudConfig }) {
   const client = useMemo(() => createClient(config.url, config.anonKey, {
     auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true },
@@ -18,7 +30,7 @@ export function CloudApp({ config }: { config: CloudConfig }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    void client.auth.getSession()
+    void withTimeout(client.auth.getSession(), CLOUD_REQUEST_TIMEOUT_MS, '登录状态读取超时，请重新加载')
       .then(({ data, error: sessionError }) => {
         if (sessionError) throw sessionError;
         setSession(data.session);
@@ -35,7 +47,7 @@ export function CloudApp({ config }: { config: CloudConfig }) {
   useEffect(() => {
     if (!session) return;
     setLoading(true); setError('');
-    void service.loadSnapshot({ includeMediaUrls: false })
+    void withTimeout(service.loadSnapshot({ includeMediaUrls: false }), CLOUD_REQUEST_TIMEOUT_MS, '读取云端档案超时，请检查网络后重试')
       .then((baseSnapshot) => {
         setSnapshot(baseSnapshot);
         setLoading(false);
