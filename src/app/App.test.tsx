@@ -96,7 +96,7 @@ describe('App', () => {
       createEntry: vi.fn().mockResolvedValue(created),
       deleteEntry: vi.fn().mockResolvedValue(undefined),
       createManualClaim: vi.fn().mockResolvedValue({ id: 'claim-cloud', category: 'wish', statement: created.content, evidenceLevel: 'explicit', reviewStatus: 'confirmed', lifecycle: 'active', happenedAt: created.happenedAt, evidence: [{ entryId: created.id, quote: created.content }] }),
-      updateClaim: vi.fn(), askMemory: vi.fn(), deleteAccount: vi.fn(), loadSnapshot: vi.fn(), retryAnalysis: vi.fn(),
+      updateClaim: vi.fn(), askMemory: vi.fn(), deleteAccount: vi.fn(), loadSnapshot: vi.fn(), loadMediaUrls: vi.fn(), retryAnalysis: vi.fn(),
     } satisfies MemoryService;
     render(<App initialSnapshot={{ profileName: '她', entries: [], claims: [] }} persist={false} service={service} />);
     await user.click(screen.getByRole('button', { name: '记录' }));
@@ -118,7 +118,7 @@ describe('App', () => {
     const service = {
       createEntry: vi.fn().mockResolvedValue(created),
       createManualClaim: vi.fn(), deleteEntry: vi.fn(), updateClaim: vi.fn(),
-      askMemory: vi.fn(), deleteAccount: vi.fn(), loadSnapshot: vi.fn(), retryAnalysis: vi.fn(),
+      askMemory: vi.fn(), deleteAccount: vi.fn(), loadSnapshot: vi.fn(), loadMediaUrls: vi.fn(), retryAnalysis: vi.fn(),
     } satisfies MemoryService;
     render(<App initialSnapshot={{ profileName: '她', entries: [], claims: [] }} persist={false} service={service} />);
     await user.click(screen.getByRole('button', { name: '记录' }));
@@ -135,7 +135,7 @@ describe('App', () => {
     const service = {
       createEntry: vi.fn().mockResolvedValue(created),
       createManualClaim: vi.fn().mockRejectedValue(new Error('自动入档失败')),
-      deleteEntry: vi.fn(), updateClaim: vi.fn(), askMemory: vi.fn(), deleteAccount: vi.fn(), loadSnapshot: vi.fn(), retryAnalysis: vi.fn(),
+      deleteEntry: vi.fn(), updateClaim: vi.fn(), askMemory: vi.fn(), deleteAccount: vi.fn(), loadSnapshot: vi.fn(), loadMediaUrls: vi.fn(), retryAnalysis: vi.fn(),
     } satisfies MemoryService;
     render(<App initialSnapshot={{ profileName: '她', entries: [], claims: [] }} persist={false} service={service} />);
     await user.click(screen.getByRole('button', { name: '记录' }));
@@ -226,7 +226,7 @@ describe('App', () => {
     const service = {
       createManualClaim: vi.fn().mockResolvedValue(createdClaim),
       createEntry: vi.fn(), deleteEntry: vi.fn(), updateClaim: vi.fn(),
-      askMemory: vi.fn(), deleteAccount: vi.fn(), loadSnapshot: vi.fn(), retryAnalysis: vi.fn(),
+      askMemory: vi.fn(), deleteAccount: vi.fn(), loadSnapshot: vi.fn(), loadMediaUrls: vi.fn(), retryAnalysis: vi.fn(),
     } satisfies MemoryService;
     render(<App initialSnapshot={{ ...snapshot, claims: [] }} persist={false} service={service} />);
     await user.click(screen.getByRole('button', { name: '记录' }));

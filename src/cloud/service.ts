@@ -17,6 +17,10 @@ export interface CreateManualClaimInput {
   statement: string;
 }
 
+export interface LoadSnapshotOptions {
+  includeMediaUrls?: boolean;
+}
+
 export interface MemoryCitation {
   claimId: string;
   entryId: string;
@@ -29,7 +33,8 @@ export interface MemoryAnswer {
 }
 
 export interface MemoryService {
-  loadSnapshot(): Promise<MemorySnapshot>;
+  loadSnapshot(options?: LoadSnapshotOptions): Promise<MemorySnapshot>;
+  loadMediaUrls(snapshot: MemorySnapshot): Promise<MemorySnapshot>;
   createEntry(input: CreateEntryInput): Promise<MemoryEntry>;
   createManualClaim(input: CreateManualClaimInput): Promise<MemoryClaim>;
   updateClaim(id: string, reviewStatus: ReviewStatus): Promise<void>;
@@ -76,7 +81,7 @@ export class SupabaseMemoryService implements MemoryService {
     return data.user.id;
   }
 
-  async loadSnapshot(): Promise<MemorySnapshot> {
+  async loadSnapshot(options: LoadSnapshotOptions = {}): Promise<MemorySnapshot> {
     const [profileResult, entriesResult, attachmentsResult, claimsResult, evidenceResult] = await Promise.all([
       this.client.from('profiles').select('display_name, avatar_path').maybeSingle(),
       this.client.from('entries').select('id, content, happened_at, created_at, revision, analysis_status, analysis_error').order('happened_at', { ascending: false }),
@@ -89,11 +94,39 @@ export class SupabaseMemoryService implements MemoryService {
     const attachments = assertData(attachmentsResult.data, attachmentsResult.error);
     const claims = assertData(claimsResult.data, claimsResult.error);
     const evidence = assertData(evidenceResult.data, evidenceResult.error);
+    const resolvedAttachments = options.includeMediaUrls === false
+      ? attachments
+      : await this.signAttachments(attachments);
+    return rowsToSnapshot({ profile: profileResult.data, entries, attachments: resolvedAttachments, claims, evidence });
+  }
+
+  async loadMediaUrls(snapshot: MemorySnapshot): Promise<MemorySnapshot> {
+    const attachments = snapshot.entries.flatMap((entry) => entry.attachments)
+      .filter((attachment) => attachment.storagePath);
+    if (!attachments.length) return snapshot;
+
     const signed = await Promise.all(attachments.map(async (attachment) => {
+      const { data } = await this.client.storage.from('memory-media').createSignedUrl(attachment.storagePath!, 3600);
+      return [attachment.id, data?.signedUrl] as const;
+    }));
+    const signedById = new Map(signed);
+    return {
+      ...snapshot,
+      entries: snapshot.entries.map((entry) => ({
+        ...entry,
+        attachments: entry.attachments.map((attachment) => ({
+          ...attachment,
+          url: signedById.get(attachment.id) ?? attachment.url,
+        })),
+      })),
+    };
+  }
+
+  private async signAttachments<T extends { storage_path: string; signed_url?: string | null }>(attachments: T[]) {
+    return Promise.all(attachments.map(async (attachment) => {
       const { data } = await this.client.storage.from('memory-media').createSignedUrl(attachment.storage_path, 3600);
       return { ...attachment, signed_url: data?.signedUrl ?? null };
     }));
-    return rowsToSnapshot({ profile: profileResult.data, entries, attachments: signed, claims, evidence });
   }
 
   async createEntry(input: CreateEntryInput): Promise<MemoryEntry> {
@@ -105,7 +138,7 @@ export class SupabaseMemoryService implements MemoryService {
     });
     if (entryError) throw new Error(entryError.message);
 
-    for (const file of input.files) {
+    const attachments = await Promise.all(input.files.map(async (file) => {
       const attachmentId = crypto.randomUUID();
       const storagePath = buildStoragePath(userId, entryId, file.name, attachmentId);
       const { error: uploadError } = await this.client.storage.from('memory-media').upload(storagePath, file, { contentType: file.type, upsert: false });
@@ -119,11 +152,26 @@ export class SupabaseMemoryService implements MemoryService {
         await this.client.storage.from('memory-media').remove([storagePath]);
         throw new Error(`媒体信息写入失败：${attachmentError.message}`);
       }
-    }
-    const snapshot = await this.loadSnapshot();
-    const entry = snapshot.entries.find((item) => item.id === entryId);
-    if (!entry) throw new Error('记录已保存，但刷新失败');
-    return entry;
+      const { data } = await this.client.storage.from('memory-media').createSignedUrl(storagePath, 3600);
+      return {
+        id: attachmentId,
+        kind: file.type.startsWith('image/') ? 'image' as const : 'audio' as const,
+        name: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        storagePath,
+        url: data?.signedUrl ?? undefined,
+      };
+    }));
+    return {
+      id: entryId,
+      content: input.content.trim(),
+      happenedAt: input.happenedAt,
+      createdAt: new Date().toISOString(),
+      revision: 1,
+      analysisStatus: 'idle',
+      attachments,
+    };
   }
 
   async createManualClaim(input: CreateManualClaimInput): Promise<MemoryClaim> {

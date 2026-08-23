@@ -20,26 +20,8 @@ describe('cloud service helpers', () => {
     const from = vi.fn((table: string) => {
       if (table === 'entries') return {
         insert: insertEntry,
-        select: vi.fn().mockReturnValue({
-          order: vi.fn().mockResolvedValue({
-            data: [{
-              id: entryId,
-              content: '原始记录',
-              happened_at: '2026-08-16T08:00:00.000Z',
-              created_at: '2026-08-16T08:00:01.000Z',
-              revision: 1,
-              analysis_status: 'idle',
-              analysis_error: null,
-            }],
-            error: null,
-          }),
-        }),
       };
-      if (table === 'profiles') return { select: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) };
-      if (table === 'attachments') return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
-      if (table === 'claims') return { select: vi.fn().mockReturnValue({ order: vi.fn().mockResolvedValue({ data: [], error: null }) }) };
-      if (table === 'claim_evidence') return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
-      throw new Error(`不应访问数据表：${table}`);
+      throw new Error(`保存记录后不应重新读取数据表：${table}`);
     });
     const client = {
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null }) },
@@ -55,8 +37,69 @@ describe('cloud service helpers', () => {
     expect(insertEntry).toHaveBeenCalledWith(expect.objectContaining({ analysis_status: 'idle' }));
     expect(from).not.toHaveBeenCalledWith('analysis_jobs');
     expect(invoke).not.toHaveBeenCalled();
+    expect(result.content).toBe('原始记录');
     expect(result.analysisStatus).toBe('idle');
     randomUUID.mockRestore();
+  });
+
+  it('多个媒体会并行上传并返回本次附件', async () => {
+    const insertEntry = vi.fn().mockResolvedValue({ error: null });
+    const insertAttachment = vi.fn().mockResolvedValue({ error: null });
+    const started: string[] = [];
+    let releaseFirst!: () => void;
+    const firstUpload = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const upload = vi.fn()
+      .mockImplementationOnce(async (path: string) => { started.push(path); await firstUpload; return { error: null }; })
+      .mockImplementationOnce(async (path: string) => { started.push(path); releaseFirst(); return { error: null }; });
+    const storageFrom = vi.fn(() => ({
+      upload,
+      createSignedUrl: vi.fn().mockResolvedValue({ data: { signedUrl: 'https://signed.example/media' } }),
+    }));
+    const from = vi.fn((table: string) => {
+      if (table === 'entries') return { insert: insertEntry };
+      if (table === 'attachments') return { insert: insertAttachment };
+      throw new Error(`不应访问数据表：${table}`);
+    });
+    const client = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null }) },
+      from,
+      storage: { from: storageFrom },
+    };
+    const randomUUID = vi.spyOn(crypto, 'randomUUID')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000001')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000002')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000003');
+
+    const service = new SupabaseMemoryService(client as never);
+    const result = await service.createEntry({
+      content: '带媒体的记录', happenedAt: '2026-08-16T08:00:00.000Z',
+      files: [new File(['one'], 'one.jpg', { type: 'image/jpeg' }), new File(['two'], 'two.webm', { type: 'audio/webm' })],
+    });
+
+    expect(started).toHaveLength(2);
+    expect(upload).toHaveBeenCalledTimes(2);
+    expect(insertAttachment).toHaveBeenCalledTimes(2);
+    expect(result.attachments).toHaveLength(2);
+    randomUUID.mockRestore();
+  });
+
+  it('媒体签名 URL 可以在基础档案之后单独补齐', async () => {
+    const createSignedUrl = vi.fn().mockResolvedValue({ data: { signedUrl: 'https://signed.example/later' } });
+    const service = new SupabaseMemoryService({ storage: { from: vi.fn(() => ({ createSignedUrl })) } } as never);
+    const snapshot = {
+      profileName: '雪梨',
+      entries: [{
+        id: 'entry-1', content: '记录', happenedAt: '2026-08-16T08:00:00.000Z', createdAt: '2026-08-16T08:00:01.000Z',
+        revision: 1, analysisStatus: 'idle' as const,
+        attachments: [{ id: 'attachment-1', kind: 'image' as const, name: 'photo.jpg', mimeType: 'image/jpeg', sizeBytes: 10, storagePath: 'user/entry/photo.jpg' }],
+      }],
+      claims: [],
+    };
+
+    const result = await service.loadMediaUrls(snapshot);
+
+    expect(createSignedUrl).toHaveBeenCalledWith('user/entry/photo.jpg', 3600);
+    expect(result.entries[0].attachments[0].url).toBe('https://signed.example/later');
   });
 
   it('手动入档时写入已确认档案和原始依据且不调用 AI', async () => {

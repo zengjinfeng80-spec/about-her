@@ -18,9 +18,13 @@ export function CloudApp({ config }: { config: CloudConfig }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    void client.auth.getSession().then(({ data }) => {
-      setSession(data.session); setLoading(false);
-    });
+    void client.auth.getSession()
+      .then(({ data, error: sessionError }) => {
+        if (sessionError) throw sessionError;
+        setSession(data.session);
+      })
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : '登录状态读取失败，请重新加载'))
+      .finally(() => setLoading(false));
     const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       if (!nextSession) setSnapshot(null);
@@ -31,13 +35,20 @@ export function CloudApp({ config }: { config: CloudConfig }) {
   useEffect(() => {
     if (!session) return;
     setLoading(true); setError('');
-    void service.loadSnapshot()
-      .then(setSnapshot)
+    void service.loadSnapshot({ includeMediaUrls: false })
+      .then((baseSnapshot) => {
+        setSnapshot(baseSnapshot);
+        setLoading(false);
+        void service.loadMediaUrls(baseSnapshot).then(setSnapshot).catch(() => {
+          // 媒体 URL 失败不阻塞文字档案。
+        });
+      })
       .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : '读取云端档案失败'))
       .finally(() => setLoading(false));
   }, [service, session]);
 
   if (loading) return <StatusScreen label="正在打开私人档案…" />;
+  if (error) return <StatusScreen label={error} action={<button className="primary-button" onClick={() => window.location.reload()}>重新加载</button>} />;
   if (!session) return <LoginPage onSend={async (email) => {
     const { error: signInError } = await client.auth.signInWithOtp({
       email,
@@ -48,7 +59,6 @@ export function CloudApp({ config }: { config: CloudConfig }) {
     const { error: verifyError } = await client.auth.verifyOtp({ email, token, type: 'email' });
     if (verifyError) throw verifyError;
   }} initialMessage={getAuthErrorMessage(window.location.href)} />;
-  if (error) return <StatusScreen label={error} action={<button className="primary-button" onClick={() => window.location.reload()}>重新加载</button>} />;
   return <App initialSnapshot={snapshot ?? EMPTY_SNAPSHOT} persist={false} service={service} accountEmail={session.user.email} onSignOut={async () => { await client.auth.signOut(); }} />;
 }
 

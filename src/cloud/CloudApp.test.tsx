@@ -100,4 +100,14 @@ describe('CloudApp 邮箱登录', () => {
 
     expect(await screen.findByText('登录链接已失效，请重新发送一封新邮件。')).toBeInTheDocument();
   });
+
+  it('认证初始化失败时显示错误而不是停留在加载中', async () => {
+    auth.getSession.mockRejectedValueOnce(new Error('网络连接失败'));
+
+    render(<CloudApp config={{ url: 'https://example.supabase.co', anonKey: 'anon-key' }} />);
+
+    expect(await screen.findByText('网络连接失败')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '重新加载' })).toBeInTheDocument();
+    expect(screen.queryByText('正在打开私人档案…')).not.toBeInTheDocument();
+  });
 });
