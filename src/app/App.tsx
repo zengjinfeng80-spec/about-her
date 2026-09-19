@@ -5,6 +5,7 @@ import { buildJsonExport, buildMarkdownExport } from '../domain/export';
 import { readAudioDuration, validateAudioDuration, validateMediaSelection } from '../domain/media';
 import type { ClaimCategory, MemoryClaim, MemoryEntry, MemorySnapshot } from '../domain/types';
 import type { MemoryService } from '../cloud/service';
+import { toFriendlyMessage } from '../cloud/errors';
 import { EMPTY_SNAPSHOT } from '../data/demo';
 import { listDrafts, removeDraft, saveDraft, type StoredDraft } from '../storage/drafts';
 import { AudioRecorder } from './AudioRecorder';
@@ -163,7 +164,7 @@ function CapturePage({ snapshot, setSnapshot, service, onAutoArchive, onArchiveE
         setMessage('记录已保存');
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '保存失败，请重试');
+      setMessage(toFriendlyMessage(error, '保存失败，请重试'));
     }
   };
   const chooseFiles = async (nextFiles: File[]) => {
@@ -198,7 +199,7 @@ function CapturePage({ snapshot, setSnapshot, service, onAutoArchive, onArchiveE
         setMessage('草稿已提交');
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '草稿提交失败');
+      setMessage(toFriendlyMessage(error, '草稿提交失败'));
     }
   };
   return <section className="page capture-page">
@@ -251,7 +252,7 @@ function SettingsPage({ snapshot, setSnapshot, service, accountEmail, onSignOut,
     try {
       if (service) await service.deleteAccount();
       setSnapshot(EMPTY_SNAPSHOT); setConfirming(false); setMessage('全部数据已删除');
-    } catch (error) { setMessage(error instanceof Error ? error.message : '删除失败'); }
+    } catch (error) { setMessage(toFriendlyMessage(error, '删除失败')); }
   };
   return <section className="page settings-page"><PageHeader title="设置" action={<button className="text-button" onClick={onBack}>返回</button>} />{accountEmail && <section><h2>账号</h2><div className="account-row"><span><strong>{accountEmail}</strong><small>邮箱链接登录</small></span>{onSignOut && <button className="secondary-button" onClick={() => void onSignOut()}>退出登录</button>}</div></section>}<section><h2>数据备份</h2><button className="setting-row" onClick={() => downloadText('雪梨.json', buildJsonExport(snapshot), 'application/json')}><FileJson /><span><strong>导出完整 JSON</strong><small>保留全部结构化数据</small></span><Download /></button><button className="setting-row" onClick={() => downloadText('雪梨.md', buildMarkdownExport(snapshot), 'text/markdown')}><FileTextIcon /><span><strong>导出可读 Markdown</strong><small>适合长期保存和阅读</small></span><Download /></button></section><section className="danger-zone"><h2>永久删除</h2>{confirming ? <div className="delete-confirm"><p>{service ? '这会永久删除账号、全部记录和私有媒体，无法撤销。' : '这会删除当前设备上的全部记录，无法撤销。'}</p><button className="danger-button" onClick={() => void permanentlyDelete()}>确认永久删除</button><button className="secondary-button" onClick={() => setConfirming(false)}>取消</button></div> : <button className="setting-row danger" onClick={() => setConfirming(true)}><Trash2 /><span><strong>删除全部数据</strong><small>此操作不可撤销</small></span></button>}{message && <p className="form-message" role="status">{message}</p>}</section></section>;
 }

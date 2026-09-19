@@ -5,6 +5,7 @@ import { App } from '../app/App';
 import { EMPTY_SNAPSHOT } from '../data/demo';
 import type { MemorySnapshot } from '../domain/types';
 import type { CloudConfig } from './config';
+import { toFriendlyMessage } from './errors';
 import { SupabaseMemoryService } from './service';
 
 const CLOUD_REQUEST_TIMEOUT_MS = 15000;
@@ -35,7 +36,7 @@ export function CloudApp({ config }: { config: CloudConfig }) {
         if (sessionError) throw sessionError;
         setSession(data.session);
       })
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : '登录状态读取失败，请重新加载'))
+      .catch((reason: unknown) => setError(toFriendlyMessage(reason, '登录状态读取失败，请重新加载')))
       .finally(() => setLoading(false));
     const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
@@ -55,7 +56,7 @@ export function CloudApp({ config }: { config: CloudConfig }) {
           // 媒体 URL 失败不阻塞文字档案。
         });
       })
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : '读取云端档案失败'))
+      .catch((reason: unknown) => setError(toFriendlyMessage(reason, '读取云端档案失败，请重新加载')))
       .finally(() => setLoading(false));
   }, [service, session]);
 
@@ -95,7 +96,7 @@ function LoginPage({ onSend, onVerify, initialMessage = '' }: {
       setStep('code');
       if (resent) setMessage('新验证码已发送。');
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : '发送失败，请稍后重试');
+      setMessage(toFriendlyMessage(reason, '发送失败，请稍后重试'));
     } finally { setSending(false); }
   };
 
@@ -105,7 +106,7 @@ function LoginPage({ onSend, onVerify, initialMessage = '' }: {
     try {
       await onVerify(email, token);
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : '验证失败，请重新检查验证码');
+      setMessage(toFriendlyMessage(reason, '验证失败，请重新检查验证码'));
     } finally { setVerifying(false); }
   };
 

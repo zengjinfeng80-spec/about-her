@@ -114,4 +114,24 @@ describe('CloudApp 邮箱登录', () => {
     expect(screen.getByRole('button', { name: '重新加载' })).toBeInTheDocument();
     expect(screen.queryByText('正在打开私人档案…')).not.toBeInTheDocument();
   });
+
+  it('后端连不上时显示中文提示并给出重试按钮', async () => {
+    auth.getSession.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    render(<CloudApp config={{ url: 'https://example.supabase.co', anonKey: 'anon-key' }} />);
+
+    expect(await screen.findByText('后端连接失败，请稍后重试')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '重新加载' })).toBeInTheDocument();
+  });
+
+  it('发送验证码遇到英文报错时显示中文提示', async () => {
+    auth.signInWithOtp.mockResolvedValueOnce({ error: new Error('Email rate limit exceeded') });
+    const user = userEvent.setup();
+    render(<CloudApp config={{ url: 'https://example.supabase.co', anonKey: 'anon-key' }} />);
+
+    await user.type(await screen.findByLabelText('邮箱'), 'user@example.com');
+    await user.click(screen.getByRole('button', { name: '发送验证码' }));
+
+    expect(await screen.findByText('操作过于频繁，请等几分钟再试')).toBeInTheDocument();
+  });
 });

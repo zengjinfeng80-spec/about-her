@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import type { ClaimCategory, MemoryEntry } from '../domain/types';
+import { toFriendlyMessage } from '../cloud/errors';
 import { CATEGORY_LABELS } from './components';
 
 export function ManualArchiveSheet({ entry, onSave, onClose }: {
@@ -25,7 +26,7 @@ export function ManualArchiveSheet({ entry, onSave, onClose }: {
       setStatement('');
       setMessage('已加入档案，可以继续添加');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '入档失败，请重试');
+      setMessage(toFriendlyMessage(error, '入档失败，请重试'));
     } finally {
       setSubmitting(false);
     }
