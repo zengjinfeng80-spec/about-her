@@ -1,0 +1,24 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//xueli//login-reminder//CN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:xueli-login-reminder-about-her
+DTSTAMP:20260919T120000Z
+DTSTART:20260919T200000
+DURATION:PT15M
+RRULE:FREQ=DAILY;INTERVAL=5
+SUMMARY:打开雪梨登录一次
+DESCRIPTION:Supabase 免费项目连续 7 天不活跃会被自动暂停。
+ 打开 https://zengjinfeng80-spec.github.io/about-her/ 登录一次即可
+ ；如果看到“项目已暂停”，
+ 到 Supabase Dashboard 点 Resume project 恢复（暂停后一年内都
+ 能恢复）。
+BEGIN:VALARM
+TRIGGER:PT0M
+ACTION:DISPLAY
+DESCRIPTION:打开雪梨登录一次
+END:VALARM
+END:VEVENT
+END:VCALENDAR
